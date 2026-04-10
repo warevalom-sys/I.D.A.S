@@ -1,7 +1,7 @@
 # app.py  ← mismo archivo, mismo nombre
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import analizar          # ← "routes" no "routers"
+from routes.analizar import router as analizar_router
 
 app = FastAPI(
     title="IDSS Backend",
@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analizar.router)
+app.include_router(analizar_router)
 
 @app.get("/")
 def root():
