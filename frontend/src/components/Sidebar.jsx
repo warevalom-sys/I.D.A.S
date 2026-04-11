@@ -12,7 +12,6 @@ const MENU = [
     icon: "◈",
     children: [
       { label: "Simulación vehicular", route: ROUTES.SIM_VEHICULAR, icon: "◻" },
-      { label: "Cargar video", route: ROUTES.SIM_VIDEO, icon: "◫" },
     ],
   },
   {
@@ -20,7 +19,6 @@ const MENU = [
     icon: "▶",
     children: [
       { label: "Peatón", route: ROUTES.EXP_PEATON, icon: "◈" },
-      { label: "Bicicleta", route: ROUTES.EXP_BICICLETA, icon: "◎" },
     ],
   },
   {

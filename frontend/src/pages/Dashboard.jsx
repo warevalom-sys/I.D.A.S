@@ -1,4 +1,4 @@
-import { ROUTES } from "../routes";
+import { ROUTES } from "../Routes";
 
 export default function Dashboard({ navigate, alertCount }) {
   const quickActions = [
