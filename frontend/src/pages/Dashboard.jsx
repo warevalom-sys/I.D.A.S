@@ -1,11 +1,10 @@
 import { ROUTES } from "../Routes";
 
-export default function Dashboard({ navigate, alertCount }) {
+export default function Dashboard({ navigate, sesion }) {
   const quickActions = [
     { label: "Simulación vehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR, accent: "green" },
-    { label: "Cargar video", icon: "◫", route: ROUTES.SIM_VIDEO, accent: "blue" },
-    { label: "Modo peatón", icon: "◈", route: ROUTES.EXP_PEATON, accent: "orange" },
-    { label: "Modo bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA, accent: "gray" },
+    { label: "Modo peatón",          icon: "◈", route: ROUTES.EXP_PEATON,    accent: "orange" },
+    { label: "Modo bicicleta",       icon: "◎", route: ROUTES.EXP_BICICLETA, accent: "gray" },
   ];
 
   return (
@@ -25,29 +24,29 @@ export default function Dashboard({ navigate, alertCount }) {
         <div className="stat-card accent-blue">
           <div className="stat-icon">◈</div>
           <div className="stat-body">
-            <span className="stat-value">0</span>
+            <span className="stat-value">{sesion.objetosDetectados}</span>
             <span className="stat-label">Objetos detectados (sesión)</span>
           </div>
         </div>
         <div className="stat-card accent-orange">
           <div className="stat-icon">◬</div>
           <div className="stat-body">
-            <span className="stat-value">{alertCount}</span>
+            <span className="stat-value">{sesion.alertas}</span>
             <span className="stat-label">Alertas activas</span>
           </div>
         </div>
         <div className="stat-card accent-green">
           <div className="stat-icon">▶</div>
           <div className="stat-body">
-            <span className="stat-value">—</span>
+            <span className="stat-value">{sesion.fps}</span>
             <span className="stat-label">FPS (cámara)</span>
           </div>
         </div>
         <div className="stat-card accent-gray">
           <div className="stat-icon">◎</div>
           <div className="stat-body">
-            <span className="stat-value">Inactivo</span>
-            <span className="stat-label">Modo actual</span>
+            <span className="stat-value" style={{ fontSize: "1rem" }}>{sesion.modo}</span>
+            <span className="stat-label">Modo actual — {sesion.estado}</span>
           </div>
         </div>
       </div>

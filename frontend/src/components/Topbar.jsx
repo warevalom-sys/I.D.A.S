@@ -11,15 +11,14 @@ const ROUTE_LABELS = {
   [ROUTES.ABOUT]: "Acerca del proyecto",
 };
 
-export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggle }) {
+export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggle, sesion }) {
   const isHome = currentRoute === ROUTES.DASHBOARD;
+  const enModo = currentRoute !== ROUTES.DASHBOARD && currentRoute !== ROUTES.ABOUT;
 
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button className="icon-btn" onClick={onMenuToggle} title="F1 — Alternar menú">
-          ☰
-        </button>
+        <button className="icon-btn" onClick={onMenuToggle} title="F1 — Alternar menú">☰</button>
         {!isHome && (
           <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)} title="Volver al inicio (B / Esc)">
             ← Inicio
@@ -29,6 +28,22 @@ export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggl
       </div>
 
       <div className="topbar-right">
+
+        {/* Stats en tiempo real — solo cuando hay sesión activa */}
+        {enModo && sesion?.objetosDetectados > 0 && (
+          <div style={{
+            display: "flex", gap: "12px", alignItems: "center",
+            fontSize: "11px", fontFamily: "var(--font-mono)",
+            color: "var(--text-secondary)", marginRight: 8,
+          }}>
+            <span>◈ {sesion.objetosDetectados} obj</span>
+            <span>▶ {sesion.fps} fps</span>
+            <span style={{ color: sesion.alertas > 0 ? "var(--red)" : "var(--text-muted)" }}>
+              {sesion.estado}
+            </span>
+          </div>
+        )}
+
         <div className="status-dot live" title="Sistema activo" />
         <span className="status-label">Sistema activo</span>
 

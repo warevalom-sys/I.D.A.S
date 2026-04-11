@@ -42,7 +42,7 @@ const MODE_CONFIG = {
   },
 };
 
-export default function CameraView({ mode, navigate }) {
+export default function CameraView({ mode, navigate, onSesionUpdate }) {
   const cfg = MODE_CONFIG[mode] || MODE_CONFIG.vehicular;
 
   const videoRef     = useRef(null);
@@ -117,6 +117,20 @@ export default function CameraView({ mode, navigate }) {
       detenerAlerta();
     }
   }, [resultadoActual?.nivel_riesgo]);
+
+  useEffect(() => {
+  if (!resultadoActual) return;
+
+  const esAlto = resultadoActual.nivel_riesgo === "alto";
+
+  onSesionUpdate?.({
+    modo: cfg.title,
+    objetosDetectados: resultadoActual.total_objetos,
+    alertas: esAlto ? 1 : 0,
+    fps: fps,
+    estado: analizando ? (esAlto ? "⚠ Riesgo alto" : "Analizando") : "Pausado",
+  });
+}, [resultadoActual, analizando, fps]);
 
   // ── Análisis ──────────────────────────────────────────
   const dibujarDetecciones = useCallback((objetos) => {
