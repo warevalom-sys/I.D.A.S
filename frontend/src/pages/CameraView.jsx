@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ROUTES } from "../Routes";
-import { analizarFrame, capturarFrameDeVideo, verificarConexion } from "../services/api";
+import { analizarFrame, capturarFrameDeVideo, verificarConexion, crearSesion } from "../services/api";
 
 const INTERVALO_MS = 750;
 
@@ -53,6 +53,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
   const sonandoRef   = useRef(false);
 
   const [camaraActiva,     setCamaraActiva]     = useState(false);
+  const [sesionId, setSesionId] = useState(null);
   const [analizando,       setAnalizando]       = useState(false);
   const [backendConectado, setBackendConectado] = useState(false);
   const [resultadoActual,  setResultadoActual]  = useState(null);
@@ -62,6 +63,20 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
 
   useEffect(() => {
     verificarConexion().then(setBackendConectado);
+  }, []);
+
+  useEffect(() => {
+    const initSesion = async () => {
+      try {
+        const id = await crearSesion();
+        setSesionId(id);
+        console.log("Sesion creada:", id);
+      } catch (err) {
+        console.error("Error creando sesión:", err);
+      }
+    };
+
+    initSesion();
   }, []);
 
   useEffect(() => {
@@ -175,9 +190,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
 
     intervaloRef.current = setInterval(async () => {
       if (!videoRef.current || videoRef.current.readyState < 2) return;
+      if(!sesionId)return;
       try {
         const blob      = await capturarFrameDeVideo(videoRef.current);
-        const resultado = await analizarFrame(blob);
+        const resultado = await analizarFrame(blob, sesionId);
         setResultadoActual(resultado);
 
         const ahora = Date.now();

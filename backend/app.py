@@ -1,6 +1,13 @@
 # app.py  ← mismo archivo, mismo nombre
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from database.connection import engine
+from database import models
+from database.models import Base
+
+Base.metadata.create_all(bind=engine)
+
 from routes.analizar import router as analizar_router
 
 app = FastAPI(
