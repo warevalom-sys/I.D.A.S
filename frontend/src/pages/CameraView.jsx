@@ -49,6 +49,8 @@ export default function CameraView({ mode, navigate }) {
   const canvasRef    = useRef(null);
   const intervaloRef = useRef(null);
   const fileInputRef = useRef(null);
+  const audioCtxRef  = useRef(null);
+  const sonandoRef   = useRef(false);
 
   const [camaraActiva,     setCamaraActiva]     = useState(false);
   const [analizando,       setAnalizando]       = useState(false);
@@ -69,8 +71,52 @@ export default function CameraView({ mode, navigate }) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       }
       if (videoUrl) URL.revokeObjectURL(videoUrl);
+      detenerAlerta();
     };
   }, []);
+
+  // ── Alertas sonoras ───────────────────────────────────
+  const reproducirAlerta = useCallback(() => {
+    if (sonandoRef.current) return;
+    sonandoRef.current = true;
+
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtxRef.current = ctx;
+
+    const intervalo = setInterval(() => {
+      if (!sonandoRef.current) {
+        clearInterval(intervalo);
+        return;
+      }
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "square";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    }, 600);
+  }, []);
+
+  const detenerAlerta = useCallback(() => {
+    sonandoRef.current = false;
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+  }, []);
+
+  // Reaccionar al nivel de riesgo
+  useEffect(() => {
+    if (resultadoActual?.nivel_riesgo === "alto") {
+      reproducirAlerta();
+    } else {
+      detenerAlerta();
+    }
+  }, [resultadoActual?.nivel_riesgo]);
 
   // ── Análisis ──────────────────────────────────────────
   const dibujarDetecciones = useCallback((objetos) => {
@@ -103,9 +149,10 @@ export default function CameraView({ mode, navigate }) {
     clearInterval(intervaloRef.current);
     setAnalizando(false);
     if (videoRef.current) videoRef.current.pause();
+    detenerAlerta();
     const ctx = canvasRef.current?.getContext("2d");
     ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-  }, []);
+  }, [detenerAlerta]);
 
   const iniciarAnalisis = useCallback(() => {
     if (!backendConectado) return;
@@ -253,7 +300,7 @@ export default function CameraView({ mode, navigate }) {
                 src={videoUrl || undefined}
                 muted
                 playsInline
-                controls={false} 
+                controls={false}
                 style={{
                   width: "100%", height: "100%",
                   objectFit: "cover",
@@ -275,7 +322,7 @@ export default function CameraView({ mode, navigate }) {
             </div>
           )}
 
-          {/* ── MODO CÁMARA ── */}
+          {/* ── MODO CÁMARA (peatón y bicicleta) ── */}
           {cfg.usaCamera && (
             <div style={{ position: "relative", width: "100%", height: "100%" }}>
               {!camaraActiva && (
@@ -290,6 +337,7 @@ export default function CameraView({ mode, navigate }) {
                 ref={videoRef}
                 muted
                 playsInline
+                controls={false}
                 style={{
                   width: "100%", height: "100%",
                   objectFit: "cover",

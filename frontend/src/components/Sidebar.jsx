@@ -19,6 +19,7 @@ const MENU = [
     icon: "▶",
     children: [
       { label: "Peatón", route: ROUTES.EXP_PEATON, icon: "◈" },
+      { label: "Bicicleta", route: ROUTES.EXP_BICICLETA, icon: "◎" },
     ],
   },
   {
