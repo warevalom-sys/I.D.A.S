@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react"; // 👈 faltaban useEffect y useCallback
 import { ROUTES } from "./routes";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -6,12 +6,15 @@ import Dashboard from "./pages/Dashboard";
 import CameraView from "./pages/CameraView";
 import UnderConstruction from "./components/UnderConstruction";
 import About from "./pages/About";
+import Settings from "./pages/Settings"; // 👈 agregar arriba con los imports
+import Login from "./pages/login"; // 👈 faltaba este import
 import "./styles/App.css";
+
 
 const NAVIGABLE_ROUTES = Object.values(ROUTES);
 
 export default function App() {
-  const [currentRoute, setCurrentRoute] = useState(ROUTES.DASHBOARD);
+  const [currentRoute, setCurrentRoute] = useState(ROUTES.LOGIN);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [alertCount] = useState(3);
 
@@ -22,6 +25,9 @@ export default function App() {
   useEffect(() => {
     const handleKey = (e) => {
       const idx = NAVIGABLE_ROUTES.indexOf(currentRoute);
+
+      if (currentRoute === ROUTES.LOGIN) return;
+
       if (e.key === "ArrowDown" && idx < NAVIGABLE_ROUTES.length - 1) {
         e.preventDefault();
         setCurrentRoute(NAVIGABLE_ROUTES[idx + 1]);
@@ -41,12 +47,15 @@ export default function App() {
         setSidebarOpen((v) => !v);
       }
     };
+
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [currentRoute]);
 
   const renderPage = () => {
     switch (currentRoute) {
+      case ROUTES.LOGIN:
+        return <Login navigate={navigate} />;
       case ROUTES.DASHBOARD:
         return <Dashboard navigate={navigate} alertCount={alertCount} />;
       case ROUTES.SIM_VEHICULAR:
@@ -59,6 +68,8 @@ export default function App() {
         return <CameraView mode="bicicleta" navigate={navigate} />;
       case ROUTES.ABOUT:
         return <About navigate={navigate} />;
+      case ROUTES.CONFIGURACION:           // 👈 agregar esto
+        return <Settings navigate={navigate} />;
       default:
         return <UnderConstruction route={currentRoute} navigate={navigate} />;
     }
@@ -66,19 +77,24 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-      <Sidebar
-        currentRoute={currentRoute}
-        navigate={navigate}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-      />
-      <div className="main-area">
-        <Topbar
+      {currentRoute !== ROUTES.LOGIN && (
+        <Sidebar
           currentRoute={currentRoute}
           navigate={navigate}
-          alertCount={alertCount}
-          onMenuToggle={() => setSidebarOpen((v) => !v)}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((v) => !v)}
         />
+      )}
+
+      <div className="main-area">
+        {currentRoute !== ROUTES.LOGIN && (
+          <Topbar
+            currentRoute={currentRoute}
+            navigate={navigate}
+            alertCount={alertCount}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+          />
+        )}
         <main className="page-content">{renderPage()}</main>
       </div>
     </div>
