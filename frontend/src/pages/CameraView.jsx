@@ -51,9 +51,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
   const fileInputRef = useRef(null);
   const audioCtxRef  = useRef(null);
   const sonandoRef   = useRef(false);
+  const sesionIdRef  = useRef(null);  // ← fix principal
 
   const [camaraActiva,     setCamaraActiva]     = useState(false);
-  const [sesionId, setSesionId] = useState(null);
+  const [sesionId,         setSesionId]         = useState(null);
   const [analizando,       setAnalizando]       = useState(false);
   const [backendConectado, setBackendConectado] = useState(false);
   const [resultadoActual,  setResultadoActual]  = useState(null);
@@ -70,12 +71,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
       try {
         const id = await crearSesion();
         setSesionId(id);
+        sesionIdRef.current = id;  // ← fix principal
         console.log("Sesion creada:", id);
       } catch (err) {
         console.error("Error creando sesión:", err);
       }
     };
-
     initSesion();
   }, []);
 
@@ -124,7 +125,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
     }
   }, []);
 
-  // Reaccionar al nivel de riesgo
   useEffect(() => {
     if (resultadoActual?.nivel_riesgo === "alto") {
       reproducirAlerta();
@@ -134,18 +134,16 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
   }, [resultadoActual?.nivel_riesgo]);
 
   useEffect(() => {
-  if (!resultadoActual) return;
-
-  const esAlto = resultadoActual.nivel_riesgo === "alto";
-
-  onSesionUpdate?.({
-    modo: cfg.title,
-    objetosDetectados: resultadoActual.total_objetos,
-    alertas: esAlto ? 1 : 0,
-    fps: fps,
-    estado: analizando ? (esAlto ? "⚠ Riesgo alto" : "Analizando") : "Pausado",
-  });
-}, [resultadoActual, analizando, fps]);
+    if (!resultadoActual) return;
+    const esAlto = resultadoActual.nivel_riesgo === "alto";
+    onSesionUpdate?.({
+      modo: cfg.title,
+      objetosDetectados: resultadoActual.total_objetos,
+      alertas: esAlto ? 1 : 0,
+      fps: fps,
+      estado: analizando ? (esAlto ? "⚠ Riesgo alto" : "Analizando") : "Pausado",
+    });
+  }, [resultadoActual, analizando, fps]);
 
   // ── Análisis ──────────────────────────────────────────
   const dibujarDetecciones = useCallback((objetos) => {
@@ -190,10 +188,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
 
     intervaloRef.current = setInterval(async () => {
       if (!videoRef.current || videoRef.current.readyState < 2) return;
-      if(!sesionId)return;
+      if (!sesionIdRef.current) return;  // ← fix principal
       try {
         const blob      = await capturarFrameDeVideo(videoRef.current);
-        const resultado = await analizarFrame(blob, sesionId);
+        const resultado = await analizarFrame(blob, sesionIdRef.current);  // ← fix
         setResultadoActual(resultado);
 
         const ahora = Date.now();
@@ -352,7 +350,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
             </div>
           )}
 
-          {/* ── MODO CÁMARA (peatón y bicicleta) ── */}
+          {/* ── MODO CÁMARA ── */}
           {cfg.usaCamera && (
             <div style={{ position: "relative", width: "100%", height: "100%" }}>
               {!camaraActiva && (
