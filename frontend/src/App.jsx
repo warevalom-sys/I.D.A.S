@@ -6,12 +6,14 @@ import Dashboard from "./pages/Dashboard";
 import CameraView from "./pages/CameraView";
 import UnderConstruction from "./components/UnderConstruction";
 import About from "./pages/About";
+import Settings from "./pages/Settings";
+import Login from "./pages/login";
 import "./styles/App.css";
 
 const NAVIGABLE_ROUTES = Object.values(ROUTES);
 
 export default function App() {
-  const [currentRoute, setCurrentRoute] = useState(ROUTES.DASHBOARD);
+  const [currentRoute, setCurrentRoute] = useState(ROUTES.LOGIN);
   const [sidebarOpen, setSidebarOpen]   = useState(true);
 
   const [sesion, setSesion] = useState({
@@ -24,7 +26,6 @@ export default function App() {
 
   const navigate = useCallback((route) => {
     setCurrentRoute(route);
-    // Al volver al dashboard resetear sesión
     if (route === ROUTES.DASHBOARD) {
       setSesion({
         modo: "Sin sesión",
@@ -38,6 +39,7 @@ export default function App() {
 
   useEffect(() => {
     const handleKey = (e) => {
+      if (currentRoute === ROUTES.LOGIN) return;
       const idx = NAVIGABLE_ROUTES.indexOf(currentRoute);
       if (e.key === "ArrowDown" && idx < NAVIGABLE_ROUTES.length - 1) {
         e.preventDefault();
@@ -64,6 +66,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentRoute) {
+      case ROUTES.LOGIN:
+        return <Login navigate={navigate} />;
       case ROUTES.DASHBOARD:
         return <Dashboard navigate={navigate} sesion={sesion} />;
       case ROUTES.SIM_VEHICULAR:
@@ -74,6 +78,8 @@ export default function App() {
         return <CameraView mode="peaton" navigate={navigate} onSesionUpdate={setSesion} />;
       case ROUTES.EXP_BICICLETA:
         return <CameraView mode="bicicleta" navigate={navigate} onSesionUpdate={setSesion} />;
+      case ROUTES.CONFIGURACION:
+        return <Settings navigate={navigate} />;
       case ROUTES.ABOUT:
         return <About navigate={navigate} />;
       default:
@@ -83,20 +89,24 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-      <Sidebar
-        currentRoute={currentRoute}
-        navigate={navigate}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-      />
-      <div className="main-area">
-        <Topbar
+      {currentRoute !== ROUTES.LOGIN && (
+        <Sidebar
           currentRoute={currentRoute}
           navigate={navigate}
-          alertCount={sesion.alertas}
-          onMenuToggle={() => setSidebarOpen((v) => !v)}
-          sesion={sesion}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((v) => !v)}
         />
+      )}
+      <div className="main-area">
+        {currentRoute !== ROUTES.LOGIN && (
+          <Topbar
+            currentRoute={currentRoute}
+            navigate={navigate}
+            alertCount={sesion.alertas}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+            sesion={sesion}
+          />
+        )}
         <main className="page-content">{renderPage()}</main>
       </div>
     </div>
