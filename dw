@@ -1,0 +1,185 @@
+[1mdiff --git a/frontend/src/pages/About.jsx b/frontend/src/pages/About.jsx[m
+[1mindex d8047a50..49906d59 100644[m
+[1m--- a/frontend/src/pages/About.jsx[m
+[1m+++ b/frontend/src/pages/About.jsx[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-import { ROUTES } from "../Routes";[m
+[32m+[m[32mimport { ROUTES } from "../routes";[m
+ [m
+ export default function About({ navigate }) {[m
+   return ([m
+[1mdiff --git a/frontend/src/pages/CameraView.jsx b/frontend/src/pages/CameraView.jsx[m
+[1mindex 5f2dfa37..de2b06f3 100644[m
+[1m--- a/frontend/src/pages/CameraView.jsx[m
+[1m+++ b/frontend/src/pages/CameraView.jsx[m
+[36m@@ -1,6 +1,6 @@[m
+ import { useRef, useState, useEffect, useCallback } from "react";[m
+ import { ROUTES } from "../Routes";[m
+[31m-import { analizarFrame, capturarFrameDeVideo, verificarConexion, crearSesion } from "../services/api";[m
+[32m+[m[32mimport { analizarFrame, capturarFrameDeVideo, verificarConexion } from "../services/api";[m
+ [m
+ const INTERVALO_MS = 750;[m
+ [m
+[36m@@ -42,19 +42,15 @@[m [mconst MODE_CONFIG = {[m
+   },[m
+ };[m
+ [m
+[31m-export default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+[32m+[m[32mexport default function CameraView({ mode, navigate }) {[m
+   const cfg = MODE_CONFIG[mode] || MODE_CONFIG.vehicular;[m
+ [m
+   const videoRef     = useRef(null);[m
+   const canvasRef    = useRef(null);[m
+   const intervaloRef = useRef(null);[m
+   const fileInputRef = useRef(null);[m
+[31m-  const audioCtxRef  = useRef(null);[m
+[31m-  const sonandoRef   = useRef(false);[m
+[31m-  const sesionIdRef  = useRef(null);  // ← fix principal[m
+ [m
+   const [camaraActiva,     setCamaraActiva]     = useState(false);[m
+[31m-  const [sesionId,         setSesionId]         = useState(null);[m
+   const [analizando,       setAnalizando]       = useState(false);[m
+   const [backendConectado, setBackendConectado] = useState(false);[m
+   const [resultadoActual,  setResultadoActual]  = useState(null);[m
+[36m@@ -66,20 +62,6 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+     verificarConexion().then(setBackendConectado);[m
+   }, []);[m
+ [m
+[31m-  useEffect(() => {[m
+[31m-    const initSesion = async () => {[m
+[31m-      try {[m
+[31m-        const id = await crearSesion();[m
+[31m-        setSesionId(id);[m
+[31m-        sesionIdRef.current = id;  // ← fix principal[m
+[31m-        console.log("Sesion creada:", id);[m
+[31m-      } catch (err) {[m
+[31m-        console.error("Error creando sesión:", err);[m
+[31m-      }[m
+[31m-    };[m
+[31m-    initSesion();[m
+[31m-  }, []);[m
+[31m-[m
+   useEffect(() => {[m
+     return () => {[m
+       clearInterval(intervaloRef.current);[m
+[36m@@ -87,64 +69,9 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());[m
+       }[m
+       if (videoUrl) URL.revokeObjectURL(videoUrl);[m
+[31m-      detenerAlerta();[m
+     };[m
+   }, []);[m
+ [m
+[31m-  // ── Alertas sonoras ───────────────────────────────────[m
+[31m-  const reproducirAlerta = useCallback(() => {[m
+[31m-    if (sonandoRef.current) return;[m
+[31m-    sonandoRef.current = true;[m
+[31m-[m
+[31m-    const ctx = new (window.AudioContext || window.webkitAudioContext)();[m
+[31m-    audioCtxRef.current = ctx;[m
+[31m-[m
+[31m-    const intervalo = setInterval(() => {[m
+[31m-      if (!sonandoRef.current) {[m
+[31m-        clearInterval(intervalo);[m
+[31m-        return;[m
+[31m-      }[m
+[31m-      const osc  = ctx.createOscillator();[m
+[31m-      const gain = ctx.createGain();[m
+[31m-      osc.connect(gain);[m
+[31m-      gain.connect(ctx.destination);[m
+[31m-      osc.type = "square";[m
+[31m-      osc.frequency.setValueAtTime(880, ctx.currentTime);[m
+[31m-      gain.gain.setValueAtTime(0.3, ctx.currentTime);[m
+[31m-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);[m
+[31m-      osc.start(ctx.currentTime);[m
+[31m-      osc.stop(ctx.currentTime + 0.3);[m
+[31m-    }, 600);[m
+[31m-  }, []);[m
+[31m-[m
+[31m-  const detenerAlerta = useCallback(() => {[m
+[31m-    sonandoRef.current = false;[m
+[31m-    if (audioCtxRef.current) {[m
+[31m-      audioCtxRef.current.close();[m
+[31m-      audioCtxRef.current = null;[m
+[31m-    }[m
+[31m-  }, []);[m
+[31m-[m
+[31m-  useEffect(() => {[m
+[31m-    if (resultadoActual?.nivel_riesgo === "alto") {[m
+[31m-      reproducirAlerta();[m
+[31m-    } else {[m
+[31m-      detenerAlerta();[m
+[31m-    }[m
+[31m-  }, [resultadoActual?.nivel_riesgo]);[m
+[31m-[m
+[31m-  useEffect(() => {[m
+[31m-    if (!resultadoActual) return;[m
+[31m-    const esAlto = resultadoActual.nivel_riesgo === "alto";[m
+[31m-    onSesionUpdate?.({[m
+[31m-      modo: cfg.title,[m
+[31m-      objetosDetectados: resultadoActual.total_objetos,[m
+[31m-      alertas: esAlto ? 1 : 0,[m
+[31m-      fps: fps,[m
+[31m-      estado: analizando ? (esAlto ? "⚠ Riesgo alto" : "Analizando") : "Pausado",[m
+[31m-    });[m
+[31m-  }, [resultadoActual, analizando, fps]);[m
+[31m-[m
+   // ── Análisis ──────────────────────────────────────────[m
+   const dibujarDetecciones = useCallback((objetos) => {[m
+     const canvas = canvasRef.current;[m
+[36m@@ -176,10 +103,9 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+     clearInterval(intervaloRef.current);[m
+     setAnalizando(false);[m
+     if (videoRef.current) videoRef.current.pause();[m
+[31m-    detenerAlerta();[m
+     const ctx = canvasRef.current?.getContext("2d");[m
+     ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);[m
+[31m-  }, [detenerAlerta]);[m
+[32m+[m[32m  }, []);[m
+ [m
+   const iniciarAnalisis = useCallback(() => {[m
+     if (!backendConectado) return;[m
+[36m@@ -188,10 +114,9 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+ [m
+     intervaloRef.current = setInterval(async () => {[m
+       if (!videoRef.current || videoRef.current.readyState < 2) return;[m
+[31m-      if (!sesionIdRef.current) return;  // ← fix principal[m
+       try {[m
+         const blob      = await capturarFrameDeVideo(videoRef.current);[m
+[31m-        const resultado = await analizarFrame(blob, sesionIdRef.current);  // ← fix[m
+[32m+[m[32m        const resultado = await analizarFrame(blob);[m
+         setResultadoActual(resultado);[m
+ [m
+         const ahora = Date.now();[m
+[36m@@ -328,7 +253,7 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+                 src={videoUrl || undefined}[m
+                 muted[m
+                 playsInline[m
+[31m-                controls={false}[m
+[32m+[m[32m                controls={false}[m[41m [m
+                 style={{[m
+                   width: "100%", height: "100%",[m
+                   objectFit: "cover",[m
+[36m@@ -365,7 +290,6 @@[m [mexport default function CameraView({ mode, navigate, onSesionUpdate }) {[m
+                 ref={videoRef}[m
+                 muted[m
+                 playsInline[m
+[31m-                controls={false}[m
+                 style={{[m
+                   width: "100%", height: "100%",[m
+                   objectFit: "cover",[m
+[1mdiff --git a/frontend/src/pages/CarProfile.jsx b/frontend/src/pages/CarProfile.jsx[m
+[1mindex 035b86a5..67574a22 100644[m
+[1m--- a/frontend/src/pages/CarProfile.jsx[m
+[1m+++ b/frontend/src/pages/CarProfile.jsx[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-import { ROUTES } from "../Routes";[m
+[32m+[m[32mimport { ROUTES } from "../routes";[m
+ [m
+ export function CarProfile({ navigate }) {[m
+   return ([m
+[1mdiff --git a/frontend/src/pages/Dashboard.jsx b/frontend/src/pages/Dashboard.jsx[m
+[1mindex ae3f3868..c81241ce 100644[m
+[1m--- a/frontend/src/pages/Dashboard.jsx[m
+[1m+++ b/frontend/src/pages/Dashboard.jsx[m
+[36m@@ -1,10 +1,11
