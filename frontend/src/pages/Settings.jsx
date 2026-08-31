@@ -1,278 +1,16 @@
 import { useState } from "react";
-import { ROUTES } from "../routes";
- 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
-const styles = `
-  .settings-container {
-    padding: 32px;
-    color: #e6edf3;
-    font-family: 'Courier New', Courier, monospace;
-    max-width: 900px;
-  }
- 
-  .settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 32px;
-  }
- 
-  .settings-title {
-    font-size: 1.4rem;
-    font-weight: bold;
-    color: #e6edf3;
-  }
- 
-  .back-btn {
-    background: transparent;
-    border: 1px solid #30363d;
-    color: #8b949e;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.8rem;
-    transition: all 0.2s;
-    width: auto;
-  }
- 
-  .back-btn:hover { border-color: #58a6ff; color: #58a6ff; }
- 
-  .settings-section {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 24px;
-  }
- 
-  /* Encabezado de sección con botón de edición */
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
- 
-  .section-title {
-    font-size: 1rem;
-    font-weight: bold;
-    color: #58a6ff;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
- 
-  /* Cuando section-title está dentro de section-header, quitamos el margin */
-  .section-header .section-title { margin-bottom: 0; }
- 
-  .section-subtitle {
-    font-size: 0.75rem;
-    color: #8b949e;
-    margin-top: 2px;
-  }
- 
-  .edit-btn {
-    background: transparent;
-    border: 1px solid #30363d;
-    color: #8b949e;
-    padding: 7px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.8rem;
-    transition: all 0.2s;
-    width: auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
- 
-  .edit-btn:hover { border-color: #58a6ff; color: #58a6ff; }
-  .edit-btn.active { border-color: #3fb950; color: #3fb950; }
- 
-  /* Grilla del vehículo */
-  .vehicle-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
- 
-  .vehicle-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
- 
-  .vehicle-field label {
-    font-size: 0.75rem;
-    color: #8b949e;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
- 
-  .vehicle-input {
-    background: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    color: #e6edf3;
-    padding: 12px 14px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9rem;
-    outline: none;
-    transition: all 0.2s;
-    width: 100%;
-    box-sizing: border-box;
-  }
- 
-  .vehicle-input:disabled {
-    color: #8b949e;
-    cursor: default;
-    border-color: #21262d;
-  }
- 
-  .vehicle-input:focus {
-    border-color: #58a6ff;
-    box-shadow: 0 0 0 3px rgba(88,166,255,0.1);
-  }
- 
-  /* Filas de ajuste */
-  .setting-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 0;
-    border-bottom: 1px solid #21262d;
-  }
- 
-  .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
- 
-  .setting-info label {
-    display: block;
-    font-size: 0.9rem;
-    font-weight: bold;
-    color: #e6edf3;
-    margin-bottom: 4px;
-  }
- 
-  .setting-info span {
-    font-size: 0.78rem;
-    color: #8b949e;
-  }
- 
-  /* Toggle */
-  .toggle-wrapper {
-    position: relative;
-    width: 52px;
-    height: 28px;
-    flex-shrink: 0;
-  }
- 
-  .toggle-wrapper input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-    position: absolute;
-  }
- 
-  .toggle-slider {
-    position: absolute;
-    inset: 0;
-    background: #30363d;
-    border-radius: 28px;
-    cursor: pointer;
-    transition: background 0.3s;
-  }
- 
-  .toggle-slider::before {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    left: 4px;
-    top: 4px;
-    background: white;
-    border-radius: 50%;
-    transition: transform 0.3s;
-  }
- 
-  .toggle-wrapper input:checked + .toggle-slider { background: #2563eb; }
-  .toggle-wrapper input:checked + .toggle-slider::before { transform: translateX(24px); }
- 
-  /* Select */
-  .settings-select {
-    background: #0d1117;
-    border: 1px solid #30363d;
-    color: #e6edf3;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.85rem;
-    outline: none;
-    cursor: pointer;
-    min-width: 160px;
-  }
- 
-  .settings-select:focus { border-color: #58a6ff; }
- 
-  /* Slider de volumen */
-  .volume-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.85rem;
-    color: #8b949e;
-  }
- 
-  .volume-slider {
-    -webkit-appearance: none;
-    width: 120px;
-    height: 4px;
-    border-radius: 4px;
-    background: #30363d;
-    outline: none;
-  }
- 
-  .volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #2563eb;
-    cursor: pointer;
-  }
- 
-  /* Botón guardar */
-  .save-btn {
-    margin-top: 8px;
-    padding: 11px 28px;
-    background: #238636;
-    color: white;
-    border: 1px solid #2ea043;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.85rem;
-    font-weight: bold;
-    letter-spacing: 1px;
-    transition: background 0.2s;
-    width: auto;
-  }
- 
-  .save-btn:hover { background: #2ea043; }
-`;
- 
+import { ROUTES } from "../Routes";
+
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
 function Toggle({ checked, onChange }) {
   return (
-    <label className="toggle-wrapper">
+    <label className="settings-toggle">
       <input type="checkbox" checked={checked} onChange={onChange} />
-      <span className="toggle-slider" />
+      <span className="settings-toggle-slider" />
     </label>
   );
 }
- 
+
 // ─── Datos de configuración de visualización ──────────────────────────────────
 const VISUAL_SETTINGS = [
   { key: "cajas",     label: "Mostrar Cajas de Detección",       desc: "Visualizar rectángulos alrededor de objetos detectados" },
@@ -280,7 +18,7 @@ const VISUAL_SETTINGS = [
   { key: "velocidad", label: "Mostrar Información de Velocidad", desc: "Mostrar velocidad de objetos en movimiento" },
   { key: "nocturno",  label: "Modo Nocturno",                    desc: "Ajusta el brillo y contraste para conducción nocturna" },
 ];
- 
+
 const VEHICLE_FIELDS = [
   { label: "Marca",        key: "marca" },
   { label: "Modelo",       key: "modelo" },
@@ -289,11 +27,23 @@ const VEHICLE_FIELDS = [
   { label: "Color",        key: "color" },
   { label: "Kilometraje",  key: "kilometraje" },
 ];
- 
+
+const SENSIBILIDAD_OPCIONES = ["Baja", "Media", "Alta"];
+
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function Settings({ navigate }) {
- 
-  // — Perfil del vehículo —
+// `user` esperado: { name, initials, modoActivo, tieneAuto }
+// `tieneAuto` es mock por ahora — cuando exista la base de datos, viene del perfil real
+// del cliente y decide si se muestra o no la sección de vehículo.
+export default function Settings({ navigate, user = {} }) {
+
+  const {
+    name = "Usuario",
+    initials = "US",
+    modoActivo = "ciclista",
+    tieneAuto = false,
+  } = user;
+
+  // — Perfil del vehículo (solo aplica si el cliente tiene auto registrado) —
   const [editingVehicle, setEditingVehicle] = useState(false);
   const [vehicle, setVehicle] = useState({
     marca:        "Tesla",
@@ -304,7 +54,7 @@ export default function Settings({ navigate }) {
     kilometraje:  "12,450",
   });
   const [vehicleTemp, setVehicleTemp] = useState({ ...vehicle });
- 
+
   const handleVehicleEdit = () => {
     if (editingVehicle) {
       setVehicle({ ...vehicleTemp });
@@ -313,50 +63,69 @@ export default function Settings({ navigate }) {
     }
     setEditingVehicle((prev) => !prev);
   };
- 
+
   // — Ajustes generales —
   const [settings, setSettings] = useState({
+    // Cámara
+    camaraTrasera: true,
+    sensibilidad:  "Media",
     cajas:      true,
     distancia:  true,
     velocidad:  true,
     nocturno:   false,
-    alertas:    true,
+    // Notificaciones
+    vibracion:  true,
+    sonido:     false,
     volumen:    75,
+    // General
     idioma:     "Español",
     resolucion: "1280 × 720",
   });
- 
+
   const toggle = (key) => setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
   const set    = (key, val) => setSettings((prev) => ({ ...prev, [key]: val }));
- 
+
+  const cycleSensibilidad = () => {
+    const i = SENSIBILIDAD_OPCIONES.indexOf(settings.sensibilidad);
+    set("sensibilidad", SENSIBILIDAD_OPCIONES[(i + 1) % SENSIBILIDAD_OPCIONES.length]);
+  };
+
   return (
-    <>
-      <style>{styles}</style>
-      <div className="settings-container">
- 
-        {/* ── Encabezado ── */}
-        <div className="settings-header">
-          <h1 className="settings-title">◎ Configuración</h1>
-          <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)}>
-            ← Inicio
-          </button>
+    <div className="settings-page">
+
+      {/* ── Encabezado ── */}
+      <div className="settings-header">
+        <h1 className="page-title">Configuración</h1>
+        <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)}>
+          ← Inicio
+        </button>
+      </div>
+
+      {/* ── Perfil ── */}
+      <div className="profile-header">
+        <div className="profile-avatar">{initials}</div>
+        <div>
+          <div className="profile-name">{name}</div>
+          <div className="profile-mode">Modo activo: {modoActivo}</div>
         </div>
- 
-        {/* ── Perfil del Vehículo ── */}
+      </div>
+
+      {/* ── Perfil del Vehículo (solo si el cliente tiene auto) ── */}
+      {tieneAuto && (
         <div className="settings-section">
-          <div className="section-header">
+          <div className="settings-section-header">
             <div>
-              <div className="section-title">🚗 Perfil del Vehículo</div>
-              <div className="section-subtitle">Información general</div>
+              <div className="settings-section-title">🚗 Perfil del Vehículo</div>
+              <div className="settings-section-subtitle">Información general</div>
             </div>
             <button
-              className={`edit-btn${editingVehicle ? " active" : ""}`}
+              className={`settings-edit-btn${editingVehicle ? " active" : ""}`}
               onClick={handleVehicleEdit}
             >
               {editingVehicle ? "✔ Guardar" : "⚙ Editar"}
             </button>
           </div>
- 
+
           <div className="vehicle-grid">
             {VEHICLE_FIELDS.map(({ label, key }) => (
               <div className="vehicle-field" key={key}>
@@ -374,34 +143,56 @@ export default function Settings({ navigate }) {
             ))}
           </div>
         </div>
- 
-        {/* ── Visualización ── */}
-        <div className="settings-section">
-          <div className="section-title">👁 Visualización</div>
- 
-          {VISUAL_SETTINGS.map(({ key, label, desc }) => (
-            <div className="setting-row" key={key}>
-              <div className="setting-info">
-                <label>{label}</label>
-                <span>{desc}</span>
-              </div>
-              <Toggle checked={settings[key]} onChange={() => toggle(key)} />
-            </div>
-          ))}
-        </div>
- 
-        {/* ── Audio ── */}
-        <div className="settings-section">
-          <div className="section-title">🔊 Audio</div>
- 
-          <div className="setting-row">
-            <div className="setting-info">
-              <label>Alertas Sonoras</label>
-              <span>Reproducir sonidos de alerta</span>
-            </div>
-            <Toggle checked={settings.alertas} onChange={() => toggle("alertas")} />
+      )}
+
+      {/* ── Cámara ── */}
+      <div className="settings-section">
+        <div className="settings-section-title">📷 Cámara</div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <label>Cámara trasera por defecto</label>
           </div>
- 
+          <Toggle checked={settings.camaraTrasera} onChange={() => toggle("camaraTrasera")} />
+        </div>
+
+        <div className="setting-row setting-row-clickable" onClick={cycleSensibilidad}>
+          <div className="setting-info">
+            <label>Sensibilidad de alerta</label>
+          </div>
+          <span className="setting-value">{settings.sensibilidad} ›</span>
+        </div>
+
+        {VISUAL_SETTINGS.map(({ key, label, desc }) => (
+          <div className="setting-row" key={key}>
+            <div className="setting-info">
+              <label>{label}</label>
+              <span>{desc}</span>
+            </div>
+            <Toggle checked={settings[key]} onChange={() => toggle(key)} />
+          </div>
+        ))}
+      </div>
+
+      {/* ── Notificaciones ── */}
+      <div className="settings-section">
+        <div className="settings-section-title">🔔 Notificaciones</div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <label>Vibración en riesgo alto</label>
+          </div>
+          <Toggle checked={settings.vibracion} onChange={() => toggle("vibracion")} />
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <label>Sonido</label>
+          </div>
+          <Toggle checked={settings.sonido} onChange={() => toggle("sonido")} />
+        </div>
+
+        {settings.sonido && (
           <div className="setting-row">
             <div className="setting-info">
               <label>Volumen de Alertas: {settings.volumen}%</label>
@@ -418,42 +209,47 @@ export default function Settings({ navigate }) {
               <span>100%</span>
             </div>
           </div>
-        </div>
- 
-        {/* ── General ── */}
-        <div className="settings-section">
-          <div className="section-title">⚙ General</div>
- 
-          <div className="setting-row">
-            <div className="setting-info"><label>Idioma</label></div>
-            <select
-              className="settings-select"
-              value={settings.idioma}
-              onChange={(e) => set("idioma", e.target.value)}
-            >
-              <option>Español</option>
-              <option>English</option>
-            </select>
-          </div>
- 
-          <div className="setting-row">
-            <div className="setting-info"><label>Resolución de análisis</label></div>
-            <select
-              className="settings-select"
-              value={settings.resolucion}
-              onChange={(e) => set("resolucion", e.target.value)}
-            >
-              <option>640 × 480</option>
-              <option>1280 × 720</option>
-              <option>1920 × 1080</option>
-            </select>
-          </div>
-        </div>
- 
-        <button className="save-btn">✔ Guardar configuración</button>
- 
+        )}
       </div>
-    </>
+
+      {/* ── General ── */}
+      <div className="settings-section">
+        <div className="settings-section-title">⚙ General</div>
+
+        <div className="setting-row">
+          <div className="setting-info"><label>Idioma</label></div>
+          <select
+            className="settings-select"
+            value={settings.idioma}
+            onChange={(e) => set("idioma", e.target.value)}
+          >
+            <option>Español</option>
+            <option>English</option>
+          </select>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info"><label>Resolución de análisis</label></div>
+          <select
+            className="settings-select"
+            value={settings.resolucion}
+            onChange={(e) => set("resolucion", e.target.value)}
+          >
+            <option>640 × 480</option>
+            <option>1280 × 720</option>
+            <option>1920 × 1080</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ── Acerca de ── */}
+      <button className="settings-link-row" onClick={() => navigate(ROUTES.ABOUT)}>
+        <span>ⓘ Acerca de COLVIS</span>
+        <span>›</span>
+      </button>
+
+      <button className="save-btn">✔ Guardar configuración</button>
+
+    </div>
   );
 }
- 

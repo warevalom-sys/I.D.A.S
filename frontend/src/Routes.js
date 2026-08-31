@@ -11,6 +11,9 @@ export const ROUTES = {
   EXP_PEATON: "experimental/peaton",
   EXP_BICICLETA: "experimental/bicicleta",
 
+  // --- Alertas ---
+  ALERTS: "alertas",
+
   // --- Análisis (futuro) ---
   ANALISIS: "analisis*",
 

@@ -12,7 +12,7 @@ export default function About({ navigate }) {
         <div className="about-logo-block">
           <span className="about-logo-icon">⬡</span>
           <div>
-            <div className="about-system-name">IDSS</div>
+            <div className="about-system-name">I.D.A.S</div>
             <div className="about-system-full">Intelligent Driving Support System</div>
             <div className="about-system-sub">Sistema de soporte inteligente para la conducción</div>
           </div>

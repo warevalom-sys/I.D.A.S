@@ -1,4 +1,4 @@
-import { ROUTES } from "../routes";
+import { ROUTES } from "../Routes";
 
 const ROUTE_LABELS = {
   [ROUTES.DASHBOARD]: "Panel Principal",
@@ -18,7 +18,7 @@ export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggl
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button className="icon-btn" onClick={onMenuToggle} title="F1 — Alternar menú">☰</button>
+        <button className="icon-btn menu-toggle-btn" onClick={onMenuToggle} title="F1 — Alternar menú">☰</button>
         {!isHome && (
           <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)} title="Volver al inicio (B / Esc)">
             ← Inicio

@@ -1,3 +1,5 @@
+import { ROUTES } from "../Routes";
+
 const MOCK_ALERTS = [
   { id: 1, level: "high", msg: "Objeto detectado a menos de 2m", time: "14:32:01", type: "Vehículo" },
   { id: 2, level: "medium", msg: "Peatón en zona de riesgo", time: "14:31:47", type: "Peatón" },
@@ -11,7 +13,7 @@ export default function AlertPanel({ navigate }) {
     <div className="alert-panel">
       <div className="panel-header">
         <span className="panel-title">◬ Alertas recientes</span>
-        <button className="panel-link" onClick={() => navigate && navigate("alerts/history")}>
+        <button className="panel-link" onClick={() => navigate && navigate(ROUTES.ALERTS)}>
           Ver todas →
         </button>
       </div>

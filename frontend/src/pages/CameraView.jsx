@@ -5,10 +5,10 @@ import { analizarFrame, capturarFrameDeVideo, verificarConexion, crearSesion } f
 const INTERVALO_MS = 750;
 
 const RIESGO_CONFIG = {
-  ninguno: { color: "#4ade80", width: "0%",   label: "SIN RIESGO" },
-  bajo:    { color: "#facc15", width: "30%",  label: "RIESGO BAJO" },
-  medio:   { color: "#f97316", width: "65%",  label: "RIESGO MEDIO" },
-  alto:    { color: "#ef4444", width: "100%", label: "RIESGO ALTO" },
+  ninguno: { color: "#3ecf6e", width: "0%",   label: "Sin riesgo" },
+  bajo:    { color: "#ffc93c", width: "30%",  label: "Riesgo bajo" },
+  medio:   { color: "#ff9f43", width: "65%",  label: "Riesgo medio" },
+  alto:    { color: "#ff4d4f", width: "100%", label: "Riesgo alto" },
 };
 
 const MODE_CONFIG = {
@@ -158,7 +158,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
 
     objetos.forEach((obj) => {
       const { x, y, ancho, alto } = obj.bbox;
-      const color = obj.clase === "persona" ? "#60a5fa" : "#f97316";
+      const color = obj.clase === "persona" ? "#378add" : "#ff9f43";
 
       ctx.strokeStyle = color;
       ctx.lineWidth   = 2;
@@ -166,8 +166,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
 
       ctx.fillStyle = color;
       ctx.fillRect(x, y - 20, ancho, 20);
-      ctx.fillStyle = "#000";
-      ctx.font      = "bold 11px monospace";
+      ctx.fillStyle = "#0c0d0f";
+      ctx.font      = "600 11px Barlow, sans-serif";
       ctx.fillText(`${obj.clase} ${Math.round(obj.confianza * 100)}%`, x + 4, y - 5);
     });
   }, []);
@@ -210,7 +210,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
+        video: { facingMode: { ideal: "environment" }, width: 640, height: 480 },
         audio: false,
       });
       if (videoRef.current) {
@@ -267,7 +267,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
     analizando && resultadoActual?.nivel_riesgo === "alto" ? (
       <div style={{
         position: "absolute", inset: 0,
-        border: "4px solid #ef4444",
+        border: "4px solid #ff4d4f",
         borderRadius: 6,
         animation: "parpadeo 0.5s infinite",
         pointerEvents: "none",
@@ -276,20 +276,29 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
         <div style={{
           position: "absolute", top: 12,
           left: "50%", transform: "translateX(-50%)",
-          background: "#ef4444", color: "#fff",
-          fontWeight: 700, fontSize: "1rem",
-          padding: "6px 20px", borderRadius: 4,
-          fontFamily: "monospace", letterSpacing: "0.1em",
+          background: "#ff4d4f", color: "#4a1111",
+          fontWeight: 600, fontSize: "0.95rem",
+          padding: "6px 20px", borderRadius: 24,
           whiteSpace: "nowrap",
         }}>
-          ⚠ RIESGO ALTO — COLISIÓN POSIBLE
+          ⚠ Riesgo alto — posible colisión
         </div>
       </div>
     ) : null;
 
   const BadgeBackend = () => backendConectado
-    ? <div className="feed-badge" style={{ color: "#4ade80" }}>● Backend conectado</div>
-    : <div className="feed-badge" style={{ color: "#ef4444" }}>⚠ Backend no disponible</div>;
+    ? <div className="feed-badge" style={{ color: "#3ecf6e" }}>● Backend conectado</div>
+    : <div className="feed-badge" style={{ color: "#ff4d4f" }}>⚠ Backend no disponible</div>;
+
+  // Píldora de riesgo flotante — solo se muestra en móvil (ver App.css)
+  const RiesgoFlotante = () => (
+    <div className="cv-feed-risk-badge">
+      <div className="cv-feed-risk-badge-inner" style={{ color: riesgo.color, background: `${riesgo.color}1a` }}>
+        <span className="cv-feed-risk-dot" />
+        {riesgo.label}
+      </div>
+    </div>
+  );
 
   // ── Render ────────────────────────────────────────────
   return (
@@ -347,6 +356,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
                 }}
               />
               <AlertaRiesgoAlto />
+              {videoUrl && <RiesgoFlotante />}
             </div>
           )}
 
@@ -384,11 +394,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
               />
 
               <AlertaRiesgoAlto />
+              {camaraActiva && <RiesgoFlotante />}
 
               {error && (
                 <div style={{
                   position: "absolute", bottom: 8, left: 8, right: 8,
-                  background: "#7f1d1d", color: "#fca5a5",
+                  background: "#4a1111", color: "#ff9f9f",
                   padding: "0.5rem", borderRadius: 6, fontSize: "0.8rem"
                 }}>
                   {error}
@@ -398,7 +409,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
           )}
 
           <div className="feed-overlay-info">
-            <span>IDSS — {cfg.title.toUpperCase()}</span>
+            <span>COLVIS — {cfg.title}</span>
             <span>FPS: {fps}</span>
           </div>
         </div>
@@ -515,7 +526,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate }) {
               {riesgo.label}
             </div>
             {resultadoActual?.total_objetos > 0 && (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#94a3b8" }}>
+              <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#8b929b" }}>
                 {resultadoActual.objetos_detectados.map((obj, i) => (
                   <div key={i}>
                     {obj.clase} — {Math.round(obj.confianza * 100)}% confianza
