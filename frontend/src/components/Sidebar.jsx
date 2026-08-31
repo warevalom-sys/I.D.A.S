@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ROUTES } from "../routes";
+import { ROUTES } from "../Routes";
 
 const MENU = [
   {
@@ -79,7 +79,6 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
           <span className="logo-icon">⬡</span>
           {isOpen && (
             <div className="logo-text">
-              // 1. Cambiar el nombre y descripción del logo
 <span className="logo-main">I.D.A.S</span>
 <span className="logo-sub">Sistema de soporte inteligente para la conducción</span>
             </div>

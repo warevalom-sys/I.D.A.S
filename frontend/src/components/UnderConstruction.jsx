@@ -1,4 +1,4 @@
-import { ROUTES } from "../routes";
+import { ROUTES } from "../Routes";
 
 export default function UnderConstruction({ route, navigate }) {
   const isFuture = route?.endsWith("*");

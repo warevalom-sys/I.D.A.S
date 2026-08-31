@@ -7,7 +7,7 @@ import CameraView from "./pages/CameraView";
 import UnderConstruction from "./components/UnderConstruction";
 import About from "./pages/About";
 import Settings from "./pages/Settings";
-import Login from "./pages/login";
+import Login from "./pages/Login";
 import "./styles/App.css";
 
 const NAVIGABLE_ROUTES = Object.values(ROUTES);
