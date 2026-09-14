@@ -1,27 +1,40 @@
 import { ROUTES } from "../Routes";
 
-const ROUTE_LABELS = {
-  [ROUTES.DASHBOARD]: "Panel Principal",
-  [ROUTES.SIM_VEHICULAR]: "Simulación › Simulación vehicular",
-  [ROUTES.SIM_VIDEO]: "Simulación › Cargar video",
-  [ROUTES.EXP_PEATON]: "Modo experimental › Peatón",
-  [ROUTES.EXP_BICICLETA]: "Modo experimental › Bicicleta",
-  [ROUTES.ANALISIS]: "Análisis*",
-  [ROUTES.CONFIGURACION]: "Configuración*",
-  [ROUTES.ABOUT]: "Acerca del proyecto",
-};
+function buildRouteLabels(t) {
+  return {
+    [ROUTES.DASHBOARD]: t("topbar.route.dashboard"),
+    [ROUTES.SIM_VEHICULAR]: t("topbar.route.simVehicular"),
+    [ROUTES.SIM_VIDEO]: t("topbar.route.simVideo"),
+    [ROUTES.EXP_BICICLETA]: t("topbar.route.bicicleta"),
+    [ROUTES.ANALISIS]: t("topbar.route.analisis"),
+    [ROUTES.CONFIGURACION]: t("topbar.route.configuracion"),
+    [ROUTES.ABOUT]: t("topbar.route.about"),
+  };
+}
 
-export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggle, sesion }) {
+export default function Topbar({
+  currentRoute,
+  navigate,
+  alertCount,
+  onMenuToggle,
+  sesion,
+  onLogout,
+  t = (key) => key,
+  idioma = "es",
+}) {
   const isHome = currentRoute === ROUTES.DASHBOARD;
   const enModo = currentRoute !== ROUTES.DASHBOARD && currentRoute !== ROUTES.ABOUT;
+  const ROUTE_LABELS = buildRouteLabels(t);
+  const localeFecha = idioma === "en" ? "en-US" : "es-CO";
+  const estadoLabel = t(`session.estado.${sesion?.estado || "inactivo"}`);
 
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button className="icon-btn menu-toggle-btn" onClick={onMenuToggle} title="F1 — Alternar menú">☰</button>
+        <button className="icon-btn menu-toggle-btn" onClick={onMenuToggle} title={t("topbar.menuToggleTitle")}>☰</button>
         {!isHome && (
-          <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)} title="Volver al inicio (B / Esc)">
-            ← Inicio
+          <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)} title={t("topbar.backTitle")}>
+            {t("topbar.back")}
           </button>
         )}
         <span className="breadcrumb">{ROUTE_LABELS[currentRoute] || currentRoute}</span>
@@ -29,31 +42,38 @@ export default function Topbar({ currentRoute, navigate, alertCount, onMenuToggl
 
       <div className="topbar-right">
 
-        {/* Stats en tiempo real — solo cuando hay sesión activa */}
-        {enModo && sesion?.objetosDetectados > 0 && (
-          <div style={{
-            display: "flex", gap: "12px", alignItems: "center",
-            fontSize: "11px", fontFamily: "var(--font-mono)",
-            color: "var(--text-secondary)", marginRight: 8,
-          }}>
-            <span>◈ {sesion.objetosDetectados} obj</span>
-            <span>▶ {sesion.fps} fps</span>
-            <span style={{ color: sesion.alertas > 0 ? "var(--red)" : "var(--text-muted)" }}>
-              {sesion.estado}
-            </span>
-          </div>
+        {/* Estado de la sesión activa — sin métricas de desarrollo (FPS,
+            conteo de objetos); esas viven en el módulo de Análisis, no aquí. */}
+        {enModo && sesion?.estado && sesion.estado !== "inactivo" && (
+          <span
+            className="topbar-session-state"
+            style={{
+              fontSize: "11px",
+              fontFamily: "var(--font-mono)",
+              color: "var(--text-secondary)",
+              marginRight: 8,
+            }}
+          >
+            {estadoLabel}
+          </span>
         )}
 
-        <div className="status-dot live" title="Sistema activo" />
-        <span className="status-label">Sistema activo</span>
+        <div className="status-dot live" title={t("topbar.systemActive")} />
+        <span className="status-label">{t("topbar.systemActive")}</span>
 
         {alertCount > 0 && (
           <div className="alert-badge">
-            ◬ {alertCount} alertas
+            ◬ {alertCount} {t("topbar.alerts")}
           </div>
         )}
 
-        <div className="topbar-time">{new Date().toLocaleDateString("es-CO")}</div>
+        <div className="topbar-time">{new Date().toLocaleDateString(localeFecha)}</div>
+
+        {onLogout && (
+          <button className="icon-btn logout-btn" onClick={onLogout} title={t("topbar.logoutTitle")}>
+            ⏻
+          </button>
+        )}
       </div>
     </header>
   );

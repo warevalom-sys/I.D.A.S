@@ -8,11 +8,7 @@ export const ROUTES = {
   SIM_VIDEO: "simulacion/video",
 
   // --- Modo experimental ---
-  EXP_PEATON: "experimental/peaton",
   EXP_BICICLETA: "experimental/bicicleta",
-
-  // --- Alertas ---
-  ALERTS: "alertas",
 
   // --- Análisis (futuro) ---
   ANALISIS: "analisis*",

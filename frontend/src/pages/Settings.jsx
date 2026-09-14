@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ROUTES } from "../Routes";
 
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
@@ -11,30 +11,57 @@ function Toggle({ checked, onChange }) {
   );
 }
 
-// ─── Datos de configuración de visualización ──────────────────────────────────
+// ─── Datos de configuración de visualización (claves de traducción, no texto) ─
 const VISUAL_SETTINGS = [
-  { key: "cajas",     label: "Mostrar Cajas de Detección",       desc: "Visualizar rectángulos alrededor de objetos detectados" },
-  { key: "distancia", label: "Mostrar Información de Distancia", desc: "Mostrar distancia en metros a objetos" },
-  { key: "velocidad", label: "Mostrar Información de Velocidad", desc: "Mostrar velocidad de objetos en movimiento" },
-  { key: "nocturno",  label: "Modo Nocturno",                    desc: "Ajusta el brillo y contraste para conducción nocturna" },
+  { key: "cajas", labelKey: "settings.visual.cajas.label", descKey: "settings.visual.cajas.desc" },
+  { key: "distancia", labelKey: "settings.visual.distancia.label", descKey: "settings.visual.distancia.desc" },
+  { key: "velocidad", labelKey: "settings.visual.velocidad.label", descKey: "settings.visual.velocidad.desc" },
+  { key: "nocturno", labelKey: "settings.visual.nocturno.label", descKey: "settings.visual.nocturno.desc" },
 ];
 
 const VEHICLE_FIELDS = [
-  { label: "Marca",        key: "marca" },
-  { label: "Modelo",       key: "modelo" },
-  { label: "Año",          key: "anio" },
-  { label: "Placa",        key: "placa" },
-  { label: "Color",        key: "color" },
-  { label: "Kilometraje",  key: "kilometraje" },
+  { labelKey: "settings.vehicle.marca", key: "marca" },
+  { labelKey: "settings.vehicle.modelo", key: "modelo" },
+  { labelKey: "settings.vehicle.anio", key: "anio" },
+  { labelKey: "settings.vehicle.placa", key: "placa" },
+  { labelKey: "settings.vehicle.color", key: "color" },
+  { labelKey: "settings.vehicle.kilometraje", key: "kilometraje" },
 ];
 
+// Valores internos sin traducir (compatibilidad con lo que espere el backend);
+// la traducción solo afecta lo que se muestra.
 const SENSIBILIDAD_OPCIONES = ["Baja", "Media", "Alta"];
+const SENSIBILIDAD_KEYS = {
+  Baja: "settings.sensitivity.baja",
+  Media: "settings.sensitivity.media",
+  Alta: "settings.sensitivity.alta",
+};
+
+// Único apartado funcional por ahora además de tema/idioma: la resolución.
+// Cámara/Vehículo/Notificaciones quedan en estado local sin persistir hasta backend.
+const GENERAL_STORAGE_KEY = "idas_settings_general";
+
+function loadGeneralSettings() {
+  try {
+    const raw = localStorage.getItem(GENERAL_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 // `user` esperado: { name, initials, modoActivo, tieneAuto }
-// `tieneAuto` es mock por ahora — cuando exista la base de datos, viene del perfil real
-// del cliente y decide si se muestra o no la sección de vehículo.
-export default function Settings({ navigate, user = {} }) {
+// `theme`/`onToggleTheme` e `idioma`/`onIdiomaChange` vienen de App.jsx (fuente de verdad global).
+export default function Settings({
+  navigate,
+  user = {},
+  t = (key) => key,
+  theme = "dark",
+  onToggleTheme = () => {},
+  idioma = "es",
+  onIdiomaChange = () => {},
+}) {
 
   const {
     name = "Usuario",
@@ -44,6 +71,7 @@ export default function Settings({ navigate, user = {} }) {
   } = user;
 
   // — Perfil del vehículo (solo aplica si el cliente tiene auto registrado) —
+  // Sin tocar: sigue siendo solo estado local, no persiste todavía.
   const [editingVehicle, setEditingVehicle] = useState(false);
   const [vehicle, setVehicle] = useState({
     marca:        "Tesla",
@@ -64,7 +92,20 @@ export default function Settings({ navigate, user = {} }) {
     setEditingVehicle((prev) => !prev);
   };
 
-  // — Ajustes generales —
+  // — Ajustes generales — idioma vive en App.jsx; aquí solo se propone en
+  // "general.idioma" y se confirma hacia arriba al guardar. Resolución sigue
+  // siendo local + persistida en localStorage, como antes.
+  const [general, setGeneral] = useState(() => {
+    const saved = loadGeneralSettings();
+    return {
+      idioma,
+      resolucion: saved?.resolucion ?? "1280 × 720",
+    };
+  });
+  const setGeneralField = (key, val) => setGeneral((prev) => ({ ...prev, [key]: val }));
+
+  // — Ajustes de cámara / notificaciones — sin tocar: solo estado local,
+  // esperando a que se estructure el backend correspondiente.
   const [settings, setSettings] = useState({
     // Cámara
     camaraTrasera: true,
@@ -77,9 +118,6 @@ export default function Settings({ navigate, user = {} }) {
     vibracion:  true,
     sonido:     false,
     volumen:    75,
-    // General
-    idioma:     "Español",
-    resolucion: "1280 × 720",
   });
 
   const toggle = (key) => setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -90,14 +128,37 @@ export default function Settings({ navigate, user = {} }) {
     set("sensibilidad", SENSIBILIDAD_OPCIONES[(i + 1) % SENSIBILIDAD_OPCIONES.length]);
   };
 
+  // — Guardar configuración — persiste resolución localmente y confirma el
+  // idioma propuesto hacia App.jsx. El tema se aplica de inmediato (no espera a Guardar).
+  const [saveState, setSaveState] = useState("idle"); // "idle" | "saved"
+
+  const handleSave = () => {
+    try {
+      localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify({ resolucion: general.resolucion }));
+      if (general.idioma !== idioma) {
+        onIdiomaChange(general.idioma);
+      }
+      setSaveState("saved");
+    } catch {
+      // localStorage no disponible (modo privado, cuota llena, etc.)
+      setSaveState("idle");
+    }
+  };
+
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timer = setTimeout(() => setSaveState("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
+
   return (
     <div className="settings-page">
 
       {/* ── Encabezado ── */}
       <div className="settings-header">
-        <h1 className="page-title">Configuración</h1>
+        <h1 className="page-title">{t("settings.title")}</h1>
         <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)}>
-          ← Inicio
+          {t("settings.back")}
         </button>
       </div>
 
@@ -106,30 +167,30 @@ export default function Settings({ navigate, user = {} }) {
         <div className="profile-avatar">{initials}</div>
         <div>
           <div className="profile-name">{name}</div>
-          <div className="profile-mode">Modo activo: {modoActivo}</div>
+          <div className="profile-mode">{t("settings.activeMode")}: {modoActivo}</div>
         </div>
       </div>
 
-      {/* ── Perfil del Vehículo (solo si el cliente tiene auto) ── */}
+      {/* ── Perfil del Vehículo (solo si el cliente tiene auto) — sin tocar ── */}
       {tieneAuto && (
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <div className="settings-section-title">🚗 Perfil del Vehículo</div>
-              <div className="settings-section-subtitle">Información general</div>
+              <div className="settings-section-title">{t("settings.vehicle.title")}</div>
+              <div className="settings-section-subtitle">{t("settings.vehicle.subtitle")}</div>
             </div>
             <button
               className={`settings-edit-btn${editingVehicle ? " active" : ""}`}
               onClick={handleVehicleEdit}
             >
-              {editingVehicle ? "✔ Guardar" : "⚙ Editar"}
+              {editingVehicle ? t("settings.vehicle.save") : t("settings.vehicle.edit")}
             </button>
           </div>
 
           <div className="vehicle-grid">
-            {VEHICLE_FIELDS.map(({ label, key }) => (
+            {VEHICLE_FIELDS.map(({ labelKey, key }) => (
               <div className="vehicle-field" key={key}>
-                <label>{label}</label>
+                <label>{t(labelKey)}</label>
                 <input
                   className="vehicle-input"
                   type="text"
@@ -145,49 +206,49 @@ export default function Settings({ navigate, user = {} }) {
         </div>
       )}
 
-      {/* ── Cámara ── */}
+      {/* ── Cámara — sin tocar, pendiente de backend ── */}
       <div className="settings-section">
-        <div className="settings-section-title">📷 Cámara</div>
+        <div className="settings-section-title">{t("settings.camera.title")}</div>
 
         <div className="setting-row">
           <div className="setting-info">
-            <label>Cámara trasera por defecto</label>
+            <label>{t("settings.camera.rearDefault")}</label>
           </div>
           <Toggle checked={settings.camaraTrasera} onChange={() => toggle("camaraTrasera")} />
         </div>
 
         <div className="setting-row setting-row-clickable" onClick={cycleSensibilidad}>
           <div className="setting-info">
-            <label>Sensibilidad de alerta</label>
+            <label>{t("settings.camera.sensitivity")}</label>
           </div>
-          <span className="setting-value">{settings.sensibilidad} ›</span>
+          <span className="setting-value">{t(SENSIBILIDAD_KEYS[settings.sensibilidad])} ›</span>
         </div>
 
-        {VISUAL_SETTINGS.map(({ key, label, desc }) => (
+        {VISUAL_SETTINGS.map(({ key, labelKey, descKey }) => (
           <div className="setting-row" key={key}>
             <div className="setting-info">
-              <label>{label}</label>
-              <span>{desc}</span>
+              <label>{t(labelKey)}</label>
+              <span>{t(descKey)}</span>
             </div>
             <Toggle checked={settings[key]} onChange={() => toggle(key)} />
           </div>
         ))}
       </div>
 
-      {/* ── Notificaciones ── */}
+      {/* ── Notificaciones — sin tocar, pendiente de backend ── */}
       <div className="settings-section">
-        <div className="settings-section-title">🔔 Notificaciones</div>
+        <div className="settings-section-title">{t("settings.notifications.title")}</div>
 
         <div className="setting-row">
           <div className="setting-info">
-            <label>Vibración en riesgo alto</label>
+            <label>{t("settings.notifications.vibration")}</label>
           </div>
           <Toggle checked={settings.vibracion} onChange={() => toggle("vibracion")} />
         </div>
 
         <div className="setting-row">
           <div className="setting-info">
-            <label>Sonido</label>
+            <label>{t("settings.notifications.sound")}</label>
           </div>
           <Toggle checked={settings.sonido} onChange={() => toggle("sonido")} />
         </div>
@@ -195,7 +256,7 @@ export default function Settings({ navigate, user = {} }) {
         {settings.sonido && (
           <div className="setting-row">
             <div className="setting-info">
-              <label>Volumen de Alertas: {settings.volumen}%</label>
+              <label>{t("settings.notifications.volume")}: {settings.volumen}%</label>
             </div>
             <div className="volume-wrapper">
               <span>0%</span>
@@ -212,28 +273,37 @@ export default function Settings({ navigate, user = {} }) {
         )}
       </div>
 
-      {/* ── General ── */}
+      {/* ── General — idioma, tema y resolución ── */}
       <div className="settings-section">
-        <div className="settings-section-title">⚙ General</div>
+        <div className="settings-section-title">{t("settings.general.title")}</div>
 
         <div className="setting-row">
-          <div className="setting-info"><label>Idioma</label></div>
+          <div className="setting-info"><label>{t("settings.general.language")}</label></div>
           <select
             className="settings-select"
-            value={settings.idioma}
-            onChange={(e) => set("idioma", e.target.value)}
+            value={general.idioma}
+            onChange={(e) => setGeneralField("idioma", e.target.value)}
           >
-            <option>Español</option>
-            <option>English</option>
+            <option value="es">Español</option>
+            <option value="en">English</option>
           </select>
         </div>
 
         <div className="setting-row">
-          <div className="setting-info"><label>Resolución de análisis</label></div>
+          <div className="setting-info"><label>{t("settings.general.theme")}</label></div>
+          <div className="theme-toggle-wrapper">
+            <span>{t("settings.general.theme.dark")}</span>
+            <Toggle checked={theme === "light"} onChange={onToggleTheme} />
+            <span>{t("settings.general.theme.light")}</span>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info"><label>{t("settings.general.resolution")}</label></div>
           <select
             className="settings-select"
-            value={settings.resolucion}
-            onChange={(e) => set("resolucion", e.target.value)}
+            value={general.resolucion}
+            onChange={(e) => setGeneralField("resolucion", e.target.value)}
           >
             <option>640 × 480</option>
             <option>1280 × 720</option>
@@ -244,11 +314,13 @@ export default function Settings({ navigate, user = {} }) {
 
       {/* ── Acerca de ── */}
       <button className="settings-link-row" onClick={() => navigate(ROUTES.ABOUT)}>
-        <span>ⓘ Acerca de COLVIS</span>
+        <span>{t("settings.about")}</span>
         <span>›</span>
       </button>
 
-      <button className="save-btn">✔ Guardar configuración</button>
+      <button className="save-btn" onClick={handleSave}>
+        {saveState === "saved" ? t("settings.saved") : t("settings.save")}
+      </button>
 
     </div>
   );

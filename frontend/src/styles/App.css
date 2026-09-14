@@ -40,6 +40,33 @@
   --transition: 180ms ease;
 }
 
+[data-theme="light"] {
+  --bg-base: #f5f7f8;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #eef1f3;
+  --bg-active: #e3faf5;
+
+  --border: #dfe3e6;
+  --border-bright: #c7ccd1;
+
+  --text-primary: #1a1d21;
+  --text-secondary: #5b616a;
+  --text-muted: #8b929b;
+  --text-accent: #0f9a82;
+  --text-accent-ink: #ffffff;
+
+  --green: #1f9d4d;
+  --green-dim: #e3f7e9;
+  --orange: #d97a1f;
+  --orange-dim: #fdecd8;
+  --red: #d93a3c;
+  --red-dim: #fbe4e4;
+  --blue: #2166b0;
+  --blue-dim: #e1ecfb;
+  --gray-dim: #eef1f3;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {

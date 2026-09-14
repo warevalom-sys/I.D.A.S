@@ -1,18 +1,10 @@
 import { ROUTES } from "../Routes";
-import StatCard from "../components/StatCard";
-import AlertPanel from "../components/AlertPanel";
 
 const IconBike = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="5.5" cy="17.5" r="3.5" />
     <circle cx="18.5" cy="17.5" r="3.5" />
     <path d="M15 6a1 1 0 100-2 1 1 0 000 2zM12 17.5V14l-3-3 4-3 2 3h3" />
-  </svg>
-);
-const IconWalk = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="13" cy="4" r="1.5" />
-    <path d="M15 8l-3 2-3 6M13.5 10l1.5 3 3 1M9 16l-2 5M13 15l3 5" />
   </svg>
 );
 const IconCar = () => (
@@ -22,22 +14,73 @@ const IconCar = () => (
     <circle cx="17" cy="17" r="1.5" />
   </svg>
 );
+const IconShield = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
 
-const MODE_META = {
-  ciclista: { label: "Modo ciclista", icon: <IconBike /> },
-  peaton:   { label: "Modo peatón",   icon: <IconWalk /> },
-  carro:    { label: "Modo carro",    icon: <IconCar /> },
-};
+function modeMeta(t) {
+  return {
+    ciclista: { labelKey: "dashboard.modeMeta.ciclista", icon: <IconBike /> },
+    carro: { labelKey: "dashboard.modeMeta.carro", icon: <IconCar /> },
+  };
+}
 
-export default function Dashboard({ navigate, sesion, user }) {
+// Deriva el estado de riesgo a partir de la severidad más alta activa.
+// Ajusta esta función a como tu backend exponga el riesgo actual.
+function getRiskStatus(sesion, t) {
+  const severidad = sesion.riesgoActual; // "alto" | "medio" | "bajo" | null
+  if (severidad === "alto") {
+    return { level: "alto", label: t("risk.alto.label"), detail: sesion.riesgoDetalle || t("risk.alto.detail"), accent: "red" };
+  }
+  if (severidad === "medio") {
+    return { level: "medio", label: t("risk.medio.label"), detail: sesion.riesgoDetalle || t("risk.medio.detail"), accent: "amber" };
+  }
+  if (severidad === "bajo") {
+    return { level: "bajo", label: t("risk.bajo.label"), detail: sesion.riesgoDetalle || t("risk.bajo.detail"), accent: "green" };
+  }
+  return { level: "ok", label: t("risk.ok.label"), detail: t("risk.ok.detail"), accent: "green" };
+}
+
+// Traduce sesion.modo ("vehicular" | "video" | "bicicleta" | null) y
+// sesion.estado ("inactivo" | "pausado" | "analizando" | "riesgoAlto").
+function modoLabel(sesion, t) {
+  return sesion.modo ? t(`camera.mode.${sesion.modo}.title`) : t("session.noSession");
+}
+function estadoLabel(sesion, t) {
+  return t(`session.estado.${sesion.estado || "activo"}`);
+}
+
+function RiskStatusCard({ sesion, t }) {
+  const risk = getRiskStatus(sesion, t);
+  return (
+    <div className={`risk-status-card accent-${risk.accent}`}>
+      <span className="risk-status-icon">
+        <IconShield />
+      </span>
+      <div className="risk-status-body">
+        <div className="risk-status-label">{risk.label}</div>
+        <div className="risk-status-detail">{risk.detail}</div>
+      </div>
+      <div className="risk-status-mode">
+        <span className="risk-status-mode-dot" />
+        {modoLabel(sesion, t)} · {estadoLabel(sesion, t)}
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard({ navigate, sesion, user, t = (key) => key }) {
   const quickActions = [
-    { label: "Simulación vehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR, accent: "green" },
-    { label: "Modo peatón",          icon: "◈", route: ROUTES.EXP_PEATON,    accent: "orange" },
-    { label: "Modo bicicleta",       icon: "◎", route: ROUTES.EXP_BICICLETA, accent: "gray" },
+    { titleKey: "camera.mode.vehicular.title", icon: "◻", route: ROUTES.SIM_VEHICULAR, accent: "green" },
+    { titleKey: "camera.mode.bicicleta.title", icon: "◎", route: ROUTES.EXP_BICICLETA, accent: "gray" },
   ];
 
-  const modeMeta = MODE_META[sesion.modoKey] || MODE_META.ciclista;
+  const META = modeMeta(t);
+  const meta = META[sesion.modoKey] || META.ciclista;
   const userName = user?.name || "Usuario";
+  const risk = getRiskStatus(sesion, t);
 
   return (
     <div className="dashboard">
@@ -45,40 +88,28 @@ export default function Dashboard({ navigate, sesion, user }) {
       {/* ── MOBILE HOME (solo visible en pantallas chicas, ver media query) ── */}
       <div className="mobile-home">
         <div className="mobile-greeting">
-          <h1 className="mobile-greeting-title">Hola, {userName}</h1>
-          <p className="mobile-greeting-sub">Listo para salir a rodar</p>
+          <h1 className="mobile-greeting-title">{t("dashboard.greeting")}, {userName}</h1>
+          <p className="mobile-greeting-sub">{t("dashboard.readyToRide")}</p>
         </div>
 
         <div className="mode-active-card" onClick={() => navigate(ROUTES.EXP_BICICLETA)}>
-          <span className="mode-active-icon">{modeMeta.icon}</span>
+          <span className="mode-active-icon">{meta.icon}</span>
           <div className="mode-active-body">
-            <div className="mode-active-title">{modeMeta.label}</div>
-            <div className="mode-active-sub">Cámara trasera · {sesion.estado || "activo"}</div>
+            <div className="mode-active-title">{t(meta.labelKey)}</div>
+            <div className="mode-active-sub">{t("dashboard.mobileRear")} · {estadoLabel(sesion, t)}</div>
           </div>
           <span className="mode-active-chevron">›</span>
         </div>
 
-        <div className="mobile-stats-row">
-          <StatCard value={sesion.alertas} label="Alertas hoy" />
-          <StatCard value={sesion.kmRecorridos ?? "—"} unit="km" label="Recorridos" />
-        </div>
-
-        <div className="section-title">Actividad reciente</div>
-        <div className="activity-list">
-          <div className="activity-row">
-            <span className="activity-dot high" />
-            <span className="activity-text">Vehículo cerca por la izquierda</span>
-            <span className="activity-time">08:14</span>
-          </div>
-          <div className="activity-row">
-            <span className="activity-dot medium" />
-            <span className="activity-text">Peatón cruzando adelante</span>
-            <span className="activity-time">07:52</span>
-          </div>
-          <div className="activity-row">
-            <span className="activity-dot ok" />
-            <span className="activity-text">Ruta sin incidentes</span>
-            <span className="activity-time">Ayer</span>
+        {/* Antes: mobile-stats-row con "Alertas hoy" (conteo) + km.
+            Ahora: mismo indicador de riesgo actual que en desktop. */}
+        <div className={`mobile-risk-card accent-${risk.accent}`}>
+          <span className="mobile-risk-icon">
+            <IconShield />
+          </span>
+          <div>
+            <div className="mobile-risk-label">{risk.label}</div>
+            <div className="mobile-risk-detail">{risk.detail}</div>
           </div>
         </div>
       </div>
@@ -87,23 +118,20 @@ export default function Dashboard({ navigate, sesion, user }) {
       <div className="desktop-dashboard">
         <div className="dashboard-header">
           <div>
-            <h1 className="page-title">Panel Principal</h1>
-            <p className="page-subtitle">I.D.A.S — Sistema de Soporte Inteligente para la Conducción · v0.1 · Prototipo universitario</p>
+            <h1 className="page-title">{t("topbar.route.dashboard")}</h1>
+            <p className="page-subtitle">{t("dashboard.subtitle")}</p>
           </div>
           <div className="system-status">
             <span className="pulse-dot" />
-            <span>Sistema listo</span>
+            <span>{t("dashboard.systemReady")}</span>
           </div>
         </div>
 
-        <div className="stats-row">
-          <StatCard icon="◈" value={sesion.objetosDetectados} label="Objetos detectados (sesión)" accent="blue" />
-          <StatCard icon="◬" value={sesion.alertas} label="Alertas activas" accent="orange" />
-          <StatCard icon="▶" value={sesion.fps} label="FPS (cámara)" accent="green" />
-          <StatCard icon="◎" value={sesion.modo} label={`Modo actual — ${sesion.estado}`} accent="gray" />
-        </div>
+        {/* Antes: stats-row con Objetos detectados, Alertas activas, FPS, Modo.
+            Ahora: un único indicador de riesgo AHORA, sin métricas de desarrollo. */}
+        <RiskStatusCard sesion={sesion} t={t} />
 
-        <div className="section-title">Acciones rápidas</div>
+        <div className="section-title">{t("dashboard.quickActions")}</div>
         <div className="quick-actions">
           {quickActions.map((a) => (
             <button
@@ -112,41 +140,31 @@ export default function Dashboard({ navigate, sesion, user }) {
               onClick={() => navigate(a.route)}
             >
               <span className="qa-icon">{a.icon}</span>
-              <span className="qa-label">{a.label}</span>
+              <span className="qa-label">{t(a.titleKey)}</span>
             </button>
           ))}
         </div>
 
-        <div className="section-title">Modos disponibles este semestre</div>
+        <div className="section-title">{t("dashboard.modesAvailable")}</div>
         <div className="modes-grid">
           <div className="mode-card" onClick={() => navigate(ROUTES.SIM_VEHICULAR)}>
             <div className="mode-icon">◻</div>
             <div className="mode-info">
-              <div className="mode-name">Simulación vehicular</div>
-              <div className="mode-desc">Análisis de videos de conducción para detectar vehículos, peatones y obstáculos en tráfico simulado.</div>
-            </div>
-          </div>
-          <div className="mode-card" onClick={() => navigate(ROUTES.EXP_PEATON)}>
-            <div className="mode-icon">◈</div>
-            <div className="mode-info">
-              <div className="mode-name">Modo experimental — Peatón</div>
-              <div className="mode-desc">Detección en tiempo real usando cámara de celular o webcam mientras una persona camina.</div>
+              <div className="mode-name">{t("camera.mode.vehicular.title")}</div>
+              <div className="mode-desc">{t("dashboard.mode.vehicular.desc")}</div>
             </div>
           </div>
           <div className="mode-card" onClick={() => navigate(ROUTES.EXP_BICICLETA)}>
             <div className="mode-icon">◎</div>
             <div className="mode-info">
-              <div className="mode-name">Modo experimental — Bicicleta</div>
-              <div className="mode-desc">Detección en tiempo real para desplazamiento en bicicleta a baja velocidad.</div>
+              <div className="mode-name">{t("dashboard.mode.bicicletaExp.title")}</div>
+              <div className="mode-desc">{t("dashboard.mode.bicicleta.desc")}</div>
             </div>
           </div>
         </div>
 
-        <div className="section-title">Alertas</div>
-        <AlertPanel navigate={navigate} />
-
         <div className="disclaimer">
-          ⚠ Este sistema es únicamente de asistencia visual. No controla ningún vehículo. La responsabilidad de conducción recae siempre en el conductor.
+          {t("dashboard.disclaimer")}
         </div>
       </div>
     </div>

@@ -1,68 +1,45 @@
 import { useState } from "react";
 import { ROUTES } from "../Routes";
 
-const MENU = [
-  {
-    label: "Inicio",
-    icon: "⬡",
-    route: ROUTES.DASHBOARD,
-  },
-  {
-    label: "Simulación",
-    icon: "◈",
-    children: [
-      { label: "Simulación vehicular", route: ROUTES.SIM_VEHICULAR, icon: "◻" },
-    ],
-  },
-  {
-    label: "Modo experimental",
-    icon: "▶",
-    children: [
-      { label: "Peatón", route: ROUTES.EXP_PEATON, icon: "◈" },
-      { label: "Bicicleta", route: ROUTES.EXP_BICICLETA, icon: "◎" },
-    ],
-  },
-  {
-    label: "Análisis*",
-    icon: "◱",
-    route: ROUTES.ANALISIS,
-  },
-  {
-    label: "Configuración*",
-    icon: "◎",
-    route: ROUTES.CONFIGURACION,
-  },
-  {
-    label: "Acerca del proyecto",
-    icon: "◯",
-    route: ROUTES.ABOUT,
-  },
-];
+/* Antes: "Simulación" y "Modo experimental" eran grupos desplegables,
+   pero cada uno solo tenía un hijo real (Peatón salió de alcance).
+   Un grupo con un solo hijo es un clic extra sin ningún beneficio,
+   así que ahora todo vive plano en el nivel superior. */
+function buildMenu(t) {
+  return [
+    { labelKey: "sidebar.menu.home", icon: "⬡", route: ROUTES.DASHBOARD },
+    { labelKey: "sidebar.menu.simVehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR },
+    { labelKey: "sidebar.menu.bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA },
+    { labelKey: "sidebar.menu.analisis", icon: "◱", route: ROUTES.ANALISIS, soon: true },
+    { labelKey: "sidebar.menu.configuracion", icon: "◎", route: ROUTES.CONFIGURACION, soon: true },
+    { labelKey: "sidebar.menu.about", icon: "◯", route: ROUTES.ABOUT },
+  ];
+}
 
-/* Prioridad ciclista/peatón: estos tres accesos van directo a la
-   barra inferior en móvil. Todo lo demás vive detrás de "Más". */
-const BOTTOM_NAV = [
-  { label: "Inicio", icon: "⬡", route: ROUTES.DASHBOARD },
-  { label: "Peatón", icon: "◈", route: ROUTES.EXP_PEATON },
-  { label: "Bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA },
-];
+/* Barra inferior móvil: los dos modos que sí están en alcance este
+   semestre (vehicular + bicicleta), Inicio, y todo lo demás en "Más". */
+function buildBottomNav() {
+  return [
+    { labelKey: "sidebar.menu.home", icon: "⬡", route: ROUTES.DASHBOARD },
+    { labelKey: "sidebar.bottomNav.vehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR },
+    { labelKey: "sidebar.bottomNav.bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA },
+  ];
+}
 
-const MORE_ITEMS = [
-  { label: "Simulación vehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR },
-  { label: "Configuración", icon: "◎", route: ROUTES.CONFIGURACION },
-  { label: "Acerca del proyecto", icon: "◯", route: ROUTES.ABOUT },
-];
+function buildMoreItems() {
+  return [
+    { labelKey: "sidebar.menu.analisis", icon: "◱", route: ROUTES.ANALISIS, soon: true },
+    { labelKey: "sidebar.menu.configuracion", icon: "◎", route: ROUTES.CONFIGURACION, soon: true },
+    { labelKey: "sidebar.menu.about", icon: "◯", route: ROUTES.ABOUT },
+  ];
+}
 
-export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
-  const [expanded, setExpanded] = useState({ "Simulación": true, "Modo experimental": false });
+export default function Sidebar({ currentRoute, navigate, isOpen, onToggle, t = (key) => key }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const toggleGroup = (label) => {
-    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
-
-  const isChildActive = (children) =>
-    children?.some((c) => c.route === currentRoute);
+  const MENU = buildMenu(t);
+  const BOTTOM_NAV = buildBottomNav();
+  const MORE_ITEMS = buildMoreItems();
 
   const goTo = (route) => {
     setMoreOpen(false);
@@ -79,82 +56,47 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
           <span className="logo-icon">⬡</span>
           {isOpen && (
             <div className="logo-text">
-<span className="logo-main">I.D.A.S</span>
-<span className="logo-sub">Sistema de soporte inteligente para la conducción</span>
+
+              <span className="logo-main">I.D.A.S</span>
+              <span className="logo-sub">{t("sidebar.logoSub")}</span>
             </div>
           )}
         </div>
 
         <nav className="sidebar-nav">
-          {MENU.map((item) => {
-            if (!item.children) {
-              const isFuture = item.label.endsWith("*");
-              return (
-                <button
-                  key={item.route}
-                  className={`nav-item top-level ${currentRoute === item.route ? "active" : ""} ${isFuture ? "future" : ""}`}
-                  onClick={() => navigate(item.route)}
-                  title={!isOpen ? item.label : ""}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  {isOpen && <span className="nav-label">{item.label}</span>}
-                </button>
-              );
-            }
-
-            const isExp = expanded[item.label];
-            const hasActive = isChildActive(item.children);
-
-            return (
-              <div key={item.label} className={`nav-group ${hasActive ? "has-active" : ""}`}>
-                <button
-                  className={`nav-item group-header ${isExp ? "expanded" : ""} ${hasActive ? "parent-active" : ""}`}
-                  onClick={() => toggleGroup(item.label)}
-                  title={!isOpen ? item.label : ""}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  {isOpen && (
-                    <>
-                      <span className="nav-label">{item.label}</span>
-                      <span className={`chevron ${isExp ? "up" : "down"}`}>›</span>
-                    </>
-                  )}
-                </button>
-
-                {isOpen && isExp && (
-                  <div className="nav-children">
-                    {item.children.map((child) => (
-                      <button
-                        key={child.route}
-                        className={`nav-item child ${currentRoute === child.route ? "active" : ""}`}
-                        onClick={() => navigate(child.route)}
-                      >
-                        <span className="nav-icon small">{child.icon}</span>
-                        <span className="nav-label">{child.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {MENU.map((item) => (
+            <button
+              key={item.route}
+              className={`nav-item top-level ${currentRoute === item.route ? "active" : ""} ${item.soon ? "soon" : ""}`}
+              onClick={() => navigate(item.route)}
+              title={!isOpen ? t(item.labelKey) : ""}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {isOpen && (
+                <>
+                  <span className="nav-label">{t(item.labelKey)}</span>
+                  {item.soon && <span className="soon-badge">{t("sidebar.soon")}</span>}
+                </>
+              )}
+            </button>
+          ))}
         </nav>
 
         <div className="sidebar-footer">
           {isOpen && (
             <div className="keyboard-hints">
-              <span>↑↓ Navegar</span>
-              <span>Home / B / Esc → Inicio</span>
-              <span>F1 → Menú</span>
+              <span>{t("sidebar.hints.navigate")}</span>
+              <span>{t("sidebar.hints.home")}</span>
+              <span>{t("sidebar.hints.menu")}</span>
             </div>
           )}
-          <button className="toggle-btn" onClick={onToggle} title="F1 — Colapsar menú">
+          <button className="toggle-btn" onClick={onToggle} title={t("sidebar.toggleTitle")}>
             {isOpen ? "◂" : "▸"}
           </button>
         </div>
       </aside>
 
-      {/* ── BARRA INFERIOR: móvil (bici / peatón) ── */}
+      {/* ── BARRA INFERIOR: móvil (vehicular / bici) ── */}
       <nav className="bottom-nav" aria-label="Navegación principal">
         {BOTTOM_NAV.map((item) => (
           <button
@@ -163,7 +105,7 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
             onClick={() => goTo(item.route)}
           >
             <span className="bottom-nav-icon">{item.icon}</span>
-            <span className="bottom-nav-label">{item.label}</span>
+            <span className="bottom-nav-label">{t(item.labelKey)}</span>
           </button>
         ))}
         <button
@@ -171,7 +113,7 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
           onClick={() => setMoreOpen((v) => !v)}
         >
           <span className="bottom-nav-icon">⋯</span>
-          <span className="bottom-nav-label">Más</span>
+          <span className="bottom-nav-label">{t("sidebar.more")}</span>
         </button>
       </nav>
 
@@ -186,7 +128,8 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle }) {
                 onClick={() => goTo(item.route)}
               >
                 <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
+                {item.soon && <span className="soon-badge">{t("sidebar.soon")}</span>}
               </button>
             ))}
           </div>
