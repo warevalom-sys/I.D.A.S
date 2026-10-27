@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ROUTES } from "./Routes";
+import { resolverTipo } from "./config/perfiles";
 import { useTranslation } from "./i18n/translations";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -41,6 +42,8 @@ function adaptarUsuario(datos) {
     initials: iniciales,
     modoActivo: datos.modo_preferido,
     tieneAuto: datos.tiene_auto,
+    // "bicicleta" | "carro" | "motocicleta" — define qué ve cada usuario
+    tipoVehiculo: resolverTipo(datos),
   };
 }
 
@@ -125,6 +128,9 @@ export default function App() {
   useEffect(() => {
     const handleKey = (e) => {
       if (currentRoute === ROUTES.LOGIN) return;
+      // No interceptar teclas mientras el usuario escribe o usa un selector/slider
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.target?.isContentEditable) return;
       const idx = NAVIGABLE_ROUTES.indexOf(currentRoute);
       if (e.key === "ArrowDown" && idx < NAVIGABLE_ROUTES.length - 1) {
         e.preventDefault();
@@ -147,7 +153,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [currentRoute]);
+  }, [currentRoute, navigate]);
 
   const renderPage = () => {
     switch (currentRoute) {
@@ -188,6 +194,7 @@ export default function App() {
           navigate={navigate}
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen((v) => !v)}
+          user={usuario}
           t={t}
         />
       )}

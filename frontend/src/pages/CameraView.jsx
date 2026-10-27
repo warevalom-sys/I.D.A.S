@@ -9,6 +9,9 @@ import {
   registrarVideoLocal,
 } from "../services/api";
 import { guardarVideoLocal } from "../services/videoStorage";
+import VehicleIcon from "../components/VehicleIcon";
+import { tr } from "../config/perfiles";
+import "../styles/camera.css";
 
 const INTERVALO_MS = 750;
 
@@ -366,6 +369,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     finalizarSesionActual();
   };
 
+  const [distMin, setDistMin] = useState(3);
+
   // ── UI ────────────────────────────────────────────────
   const riesgoKey = resultadoActual?.nivel_riesgo || "ninguno";
   const riesgoMeta = RIESGO_CONFIG[riesgoKey];
@@ -410,17 +415,64 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   );
 
   // ── Render ────────────────────────────────────────────
-  return (
-    <div className="camera-view">
-      <div className="cv-header">
-        <h1 className="page-title">{cfg.icon} {cfg.title}</h1>
-        <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)}>{t("settings.back")}</button>
-      </div>
+  const esBici = cfg.usaCamera;
+  const tipoIcono = esBici ? "bicicleta" : user?.tipoVehiculo === "motocicleta" ? "motocicleta" : "carro";
+  const listo = esBici ? camaraActiva : !!videoUrl;
 
-      <div className="cv-layout">
+  const estadoTexto = analizando
+    ? tr(t, "camera.ui.state.analyzing", "Analizando tu entorno")
+    : listo
+      ? tr(t, "camera.ui.state.ready", "Todo listo, falta iniciar el análisis")
+      : esBici
+        ? tr(t, "camera.ui.state.needCamera", "Activa la cámara para empezar")
+        : tr(t, "camera.ui.state.needVideo", "Carga un video para empezar");
+
+  // Una sola acción principal a la vez: la que toca ahora.
+  let accion;
+  if (analizando) {
+    accion = { label: t("camera.controls.pauseAnalysis"), onClick: detenerAnalisis, variant: "pause" };
+  } else if (listo) {
+    accion = {
+      label: esBici ? t("camera.controls.startAnalysis") : t("camera.controls.analyze"),
+      onClick: esBici ? iniciarAnalisis : reproducirYAnalizar,
+      disabled: !backendConectado,
+      variant: "primary",
+    };
+  } else {
+    accion = {
+      label: esBici ? t("camera.controls.startCamera") : t("camera.controls.loadVideo"),
+      onClick: esBici ? iniciarCamara : () => fileInputRef.current.click(),
+      variant: "primary",
+    };
+  }
+
+  const pasos = [
+    { label: esBici ? tr(t, "camera.ui.step.camera", "Cámara") : tr(t, "camera.ui.step.video", "Video"), done: listo },
+    { label: tr(t, "camera.ui.step.analysis", "Análisis"), done: analizando },
+  ];
+  const pasoActual = pasos.findIndex((p) => !p.done);
+
+  const placeholderTitulo = esBici
+    ? tr(t, "camera.ui.placeholder.camera", "Activa la cámara para empezar")
+    : tr(t, "camera.ui.placeholder.video", "Carga un video para empezar");
+
+  return (
+    <div className="camera-view cv2">
+      <header className="cv2-header">
+        <div className="cv2-title">
+          <span className="cv2-title-icon"><VehicleIcon tipo={tipoIcono} size={26} /></span>
+          <div>
+            <h1 className="cv2-h1">{cfg.title}</h1>
+            <p className="cv2-sub" aria-live="polite">{estadoTexto}</p>
+          </div>
+        </div>
+        <button className="back-btn" onClick={() => navigate(ROUTES.DASHBOARD)}>{t("settings.back")}</button>
+      </header>
+
+      <div className="cv2-layout">
 
         {/* ── FEED ── */}
-        <div className="cv-feed">
+        <div className="cv-feed cv2-feed">
 
           {/* ── MODO VIDEO ── */}
           {cfg.usaVideo && (
@@ -434,9 +486,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
               />
 
               {!videoUrl && (
-                <div className="feed-placeholder">
-                  <div className="feed-icon">{cfg.icon}</div>
-                  <p className="feed-msg">{cfg.desc}</p>
+                <div className="cv2-placeholder">
+                  <span className="cv2-ph-icon"><VehicleIcon tipo={tipoIcono} size={40} /></span>
+                  <p className="cv2-ph-title">{placeholderTitulo}</p>
+                  <p className="cv2-ph-desc">{cfg.desc}</p>
                   <BadgeBackend />
                 </div>
               )}
@@ -473,9 +526,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
           {cfg.usaCamera && (
             <div style={{ position: "relative", width: "100%", height: "100%" }}>
               {!camaraActiva && (
-                <div className="feed-placeholder">
-                  <div className="feed-icon">{cfg.icon}</div>
-                  <p className="feed-msg">{cfg.desc}</p>
+                <div className="cv2-placeholder">
+                  <span className="cv2-ph-icon"><VehicleIcon tipo={tipoIcono} size={40} /></span>
+                  <p className="cv2-ph-title">{placeholderTitulo}</p>
+                  <p className="cv2-ph-desc">{cfg.desc}</p>
                   <BadgeBackend />
                 </div>
               )}
@@ -543,127 +597,118 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
           )}
         </div>
 
-        {/* ── CONTROLES ── */}
-        <div className="cv-controls">
-          <div className="ctrl-section">
-            <div className="ctrl-title">{t("camera.controls.title")}</div>
+        {/* ── PANEL LATERAL ── */}
+        <div className="cv2-side">
 
-            {/* Botones VIDEO */}
-            {cfg.usaVideo && (
-              <>
-                <button
-                  className="ctrl-btn primary"
-                  onClick={() => fileInputRef.current.click()}
-                >
-                  {t("camera.controls.loadVideo")}
-                </button>
-                {videoUrl && !analizando && (
-                  <button
-                    className="ctrl-btn primary"
-                    onClick={reproducirYAnalizar}
-                    disabled={!backendConectado}
-                  >
-                    {t("camera.controls.analyze")}
-                  </button>
-                )}
-                {analizando && (
-                  <button className="ctrl-btn" onClick={detenerAnalisis}>
-                    {t("camera.controls.pauseAnalysis")}
-                  </button>
-                )}
-                <button
-                  className="ctrl-btn danger"
-                  onClick={detenerVideo}
-                  disabled={!videoUrl}
-                >
-                  {t("camera.controls.stopVideo")}
-                </button>
-              </>
-            )}
+          {/* Pasos */}
+          <ol className="cv2-steps" aria-label={tr(t, "camera.ui.steps", "Pasos")}>
+            {pasos.map((p, i) => (
+              <li
+                key={p.label}
+                className={`cv2-step${p.done ? " done" : ""}${i === pasoActual ? " current" : ""}`}
+              >
+                <span className="cv2-step-num">{p.done ? "✓" : i + 1}</span>
+                {p.label}
+              </li>
+            ))}
+          </ol>
 
-            {/* Botones CÁMARA */}
-            {cfg.usaCamera && (
-              <>
-                {!camaraActiva && (
-                  <button className="ctrl-btn primary" onClick={iniciarCamara}>
-                    {t("camera.controls.startCamera")}
-                  </button>
-                )}
-                {camaraActiva && !analizando && (
-                  <button
-                    className="ctrl-btn primary"
-                    onClick={iniciarAnalisis}
-                    disabled={!backendConectado}
-                  >
-                    {t("camera.controls.startAnalysis")}
-                  </button>
-                )}
-                {analizando && (
-                  <button className="ctrl-btn" onClick={detenerAnalisis}>
-                    {t("camera.controls.pauseAnalysis")}
-                  </button>
-                )}
-                <button
-                  className="ctrl-btn danger"
-                  onClick={detenerCamara}
-                  disabled={!camaraActiva}
-                >
-                  {t("camera.controls.stopCamera")}
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="ctrl-section">
-            <div className="ctrl-title">{t("camera.detection.title")}</div>
-            <label className="ctrl-toggle">
-              <input type="checkbox" defaultChecked />
-              <span>{t("camera.detection.vehicles")}</span>
-            </label>
-            <label className="ctrl-toggle">
-              <input type="checkbox" defaultChecked />
-              <span>{t("camera.detection.pedestrians")}</span>
-            </label>
-            <label className="ctrl-toggle">
-              <input type="checkbox" />
-              <span>{t("camera.detection.staticObstacles")}</span>
-            </label>
-          </div>
-
-          <div className="ctrl-section">
-            <div className="ctrl-title">{t("camera.threshold.title")}</div>
-            <div className="range-row">
-              <span>{t("camera.threshold.minDist")}</span>
-              <input type="range" min={1} max={10} defaultValue={3} />
-              <span>3m</span>
+          {/* Sin conexión con el servidor */}
+          {!backendConectado && (
+            <div className="cv2-warn" role="alert">
+              <span>{t("camera.backendUnavailable")}</span>
+              <button className="cv2-link" onClick={() => verificarConexion().then(setBackendConectado)}>
+                {tr(t, "camera.ui.retry", "Reintentar")}
+              </button>
             </div>
+          )}
+
+          {/* Acción principal + terminar */}
+          <div className="cv2-actions">
+            <button
+              className={`cv2-btn cv2-btn-${accion.variant}`}
+              onClick={accion.onClick}
+              disabled={accion.disabled}
+            >
+              {accion.label}
+            </button>
+
+            {!esBici && videoUrl && !analizando && (
+              <button className="cv2-btn cv2-btn-ghost" onClick={() => fileInputRef.current.click()}>
+                {tr(t, "camera.ui.changeVideo", "Cambiar video")}
+              </button>
+            )}
+
+            <button
+              className="cv2-btn cv2-btn-danger"
+              onClick={esBici ? detenerCamara : detenerVideo}
+              disabled={!listo}
+            >
+              {esBici ? t("camera.controls.stopCamera") : t("camera.controls.stopVideo")}
+            </button>
           </div>
 
-          <div className="risk-indicator">
-            <div className="risk-label">{t("camera.riskIndicator.title")}</div>
-            <div className="risk-bar">
+          {/* Nivel de riesgo (siempre visible, también en móvil) */}
+          <section className="cv2-risk" aria-live="polite">
+            <div className="cv2-risk-head">
+              <span className="cv2-risk-title">{t("camera.riskIndicator.title")}</span>
+              <span className="cv2-risk-label" style={{ color: riesgo.color }}>{riesgo.label}</span>
+            </div>
+            <div className="cv2-risk-bar">
               <div
-                className="risk-fill"
-                style={{
-                  width: riesgo.width,
-                  background: riesgo.color,
-                  transition: "width 0.4s ease, background 0.4s ease",
-                }}
+                className="cv2-risk-fill"
+                style={{ width: riesgo.width, background: riesgo.color }}
               />
             </div>
-            <div className="risk-text" style={{ color: riesgo.color }}>
-              {riesgo.label}
-            </div>
-            {feedVisualCompleto && resultadoActual?.total_objetos > 0 && (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#8b929b" }}>
-                {resultadoActual.objetos_detectados.map((obj, i) => (
-                  <div key={i}>
-                    {obj.clase} — {Math.round(obj.confianza * 100)}% {t("camera.confidence")}
-                  </div>
-                ))}
-              </div>
+            {esBici && (
+              <p className="cv2-risk-note">
+                {tr(t, "camera.ui.soundNote", "Las alertas se avisan con sonido. Sube el volumen antes de salir.")}
+              </p>
             )}
-          </div>
+            {feedVisualCompleto && resultadoActual?.total_objetos > 0 && (
+              <ul className="cv2-objects">
+                {resultadoActual.objetos_detectados.map((obj, i) => (
+                  <li key={i}>
+                    {obj.clase} — {Math.round(obj.confianza * 100)}% {t("camera.confidence")}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* Ajustes de detección: plegados para no estorbar */}
+          <details className="cv2-details">
+            <summary>{tr(t, "camera.ui.settings", "Ajustes de detección")}</summary>
+            <div className="cv2-details-body">
+              <label className="ctrl-toggle">
+                <input type="checkbox" defaultChecked />
+                <span>{t("camera.detection.vehicles")}</span>
+              </label>
+              <label className="ctrl-toggle">
+                <input type="checkbox" defaultChecked />
+                <span>{t("camera.detection.pedestrians")}</span>
+              </label>
+              <label className="ctrl-toggle">
+                <input type="checkbox" />
+                <span>{t("camera.detection.staticObstacles")}</span>
+              </label>
+              <div className="range-row">
+                <span>{t("camera.threshold.minDist")}</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={distMin}
+                  onChange={(e) => setDistMin(Number(e.target.value))}
+                />
+                <span>{distMin}m</span>
+              </div>
+            </div>
+          </details>
+
+          <p className="cv2-safety">
+            {tr(t, "camera.ui.safety", "Configura todo antes de salir. No uses el celular mientras te desplazas.")}
+          </p>
         </div>
       </div>
 

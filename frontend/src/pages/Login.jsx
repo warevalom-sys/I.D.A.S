@@ -2,87 +2,69 @@ import { useState, useEffect } from "react";
 import { ROUTES } from "../Routes";
 import { login as apiLogin, registrarUsuario } from "../services/api";
 
-// ─── Usuarios predefinidos ───────────────────────────────────────────────────
-const USUARIOS_PREDEFINIDOS = [
-  { usuario: "moto_user",  password: "1234", tipo: "Motocicleta" },
-  { usuario: "carro_user", password: "1234", tipo: "Carro" },
-  { usuario: "bici_user",  password: "1234", tipo: "Bicicleta" },
-  { usuario: "peaton",     password: "1234", tipo: "A pie" },
+// Tipo de vehículo → modo_preferido + tiene_auto.
+// Bicicleta no cuenta como "auto"; Carro y Motocicleta sí.
+const TIPOS_VEHICULO = [
+  { value: "Bicicleta",   modoPreferido: "ciclista", tieneAuto: false },
+  { value: "Carro",       modoPreferido: "carro",    tieneAuto: true  },
+  { value: "Motocicleta", modoPreferido: "carro",    tieneAuto: true  },
 ];
 
-// ─── Estilos — identidad visual IDAS...
-// ─── Estilos — identidad visual IDAS: acento verde-cian de marca (separado
-// de los colores de severidad rojo/ámbar/verde), Quicksand para títulos,
-// Nunito Sans para interfaz, bordes redondeados. ──────────────────────────
+// Usa las variables del tema de App.css (--bg-*, --text-*, --border, etc.),
+// así el login respeta modo claro/oscuro igual que el resto de la app.
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap');
-
-  @keyframes fadeInUp {
+  @keyframes lgFadeInUp {
     from { opacity: 0; transform: translateY(20px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes pulse-ring {
+  @keyframes lgPulseRing {
     0%   { transform: scale(0.8); opacity: 1; }
     100% { transform: scale(2);   opacity: 0; }
   }
-  @keyframes blink {
+  @keyframes lgBlink {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0; }
+    50%      { opacity: 0; }
   }
-  @keyframes float {
+  @keyframes lgFloat {
     0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(-6px); }
+    50%      { transform: translateY(-6px); }
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  .lx-bg {
-    min-height: 100vh;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #0b0f14;
-    font-family: 'Nunito Sans', sans-serif;
+  .lg-page {
     position: relative;
     overflow: hidden;
-    padding: 24px;
+    min-height: 100vh;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(280px, 34%) 1fr;
+    background: var(--bg-base, #16181c);
+    color: var(--text-primary, #eef0f2);
+    font-family: var(--font-ui, 'Nunito Sans', sans-serif);
   }
 
-  .lx-glow {
+  .lg-glow {
     position: absolute;
     width: 560px; height: 560px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(20,184,166,0.09) 0%, transparent 70%);
+    top: 50%; left: 66%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--text-accent, #00e5b8) 12%, transparent) 0%, transparent 70%);
     pointer-events: none;
   }
 
-  .lx-wrap {
-    display: flex;
+  /* ── Panel izquierdo (marca) ── */
+  .lg-side {
+    position: relative;
     z-index: 1;
-    width: 820px;
-    max-width: 100%;
-    border-radius: 28px;
     overflow: hidden;
-    border: 1px solid #202932;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
-    animation: fadeInUp 0.5s ease both;
-  }
-
-  .lx-left {
-    width: 300px;
-    flex-shrink: 0;
     background: linear-gradient(160deg, #0e2621 0%, #0f1419 100%);
-    padding: 40px 30px;
+    border-right: 1px solid #1b232b;
+    padding: 48px 40px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    border-right: 1px solid #1b232b;
-    position: relative;
-    overflow: hidden;
   }
-
-  .lx-left::after {
+  .lg-side::after {
     content: '';
     position: absolute;
     top: -60px; right: -60px;
@@ -91,474 +73,515 @@ const styles = `
     background: radial-gradient(circle, rgba(34,211,238,0.12) 0%, transparent 70%);
     pointer-events: none;
   }
-
-  .lx-brand { animation: float 4s ease-in-out infinite; }
-
-  .lx-logo {
-    font-family: 'Quicksand', sans-serif;
+  .lg-brand { animation: lgFloat 4s ease-in-out infinite; }
+  .lg-logo {
+    font-family: var(--font-display, 'Quicksand', sans-serif);
     font-size: 2.6rem;
     font-weight: 800;
     letter-spacing: 3px;
+    line-height: 1;
     background: linear-gradient(135deg, #14b8a6, #22d3ee);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    line-height: 1;
   }
-
-  .lx-logoname {
-    font-size: 0.68rem;
-    color: #8b98a1;
-    letter-spacing: 1px;
+  .lg-brand-full {
     margin-top: 8px;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    color: #8b98a1;
   }
-
-  .lx-version {
+  .lg-version {
     display: inline-block;
     margin-top: 12px;
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #2dd4bf;
-    border: 1px solid rgba(45,212,191,0.35);
     padding: 3px 10px;
     border-radius: 20px;
+    border: 1px solid rgba(45,212,191,0.35);
+    font-size: 0.65rem;
+    font-weight: 600;
     letter-spacing: 0.5px;
+    color: #2dd4bf;
   }
-
-  .lx-features {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 13px;
-  }
-
-  .lx-features li {
-    font-size: 0.78rem;
+  .lg-side-text {
+    font-size: 1rem;
+    line-height: 1.55;
     color: #9aa5ad;
+    max-width: 30ch;
+  }
+  .lg-side-foot {
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-
-  .lx-features li::before {
-    content: '';
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #2dd4bf;
-    flex-shrink: 0;
-    box-shadow: 0 0 6px rgba(45,212,191,0.7);
-  }
-
-  .lx-status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: #9aa5ad;
   }
-
-  .lx-dot {
+  .lg-dot {
+    position: relative;
     width: 8px; height: 8px;
     border-radius: 50%;
+    flex-shrink: 0;
     background: #2dd4bf;
     box-shadow: 0 0 7px rgba(45,212,191,0.8);
-    flex-shrink: 0;
-    position: relative;
   }
-
-  .lx-dot::after {
+  .lg-dot::after {
     content: '';
     position: absolute;
     inset: -4px;
     border-radius: 50%;
     border: 1px solid #2dd4bf;
-    animation: pulse-ring 2s ease-out infinite;
+    animation: lgPulseRing 2s ease-out infinite;
   }
 
-  .lx-right {
-    flex: 1;
-    background: #12171d;
-    padding: 40px 36px;
+  /* ── Panel derecho (formulario) ── */
+  .lg-main {
+    position: relative;
+    z-index: 1;
     display: flex;
-    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    padding: 40px 24px;
   }
-
-  .lx-form-title {
-    font-family: 'Quicksand', sans-serif;
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #eef2f5;
-    margin-bottom: 4px;
+  .lg-form-col {
+    width: 100%;
+    max-width: 400px;
+    animation: lgFadeInUp 0.5s ease both;
   }
-
-  .lx-cursor {
+  .lg-cursor {
     display: inline-block;
-    animation: blink 1s step-end infinite;
-    color: #2dd4bf;
     margin-left: 1px;
+    color: var(--text-accent, #00e5b8);
+    animation: lgBlink 1s step-end infinite;
+  }
+  .lg-title {
+    font-family: var(--font-display, 'Quicksand', sans-serif);
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .lg-sub {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #8b929b);
+    margin: 0 0 24px;
   }
 
-  .lx-form-sub {
-    font-size: 0.78rem;
-    color: #8b98a1;
-    margin-bottom: 22px;
+  /* Toggle tipo píldora (Iniciar sesión / Crear cuenta) */
+  .lg-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 24px;
+    border-radius: 999px;
+    background: var(--bg-card, #23262b);
+    border: 1px solid var(--border-bright, #3a3f47);
   }
-
-  .lx-tabs {
-    display: flex;
-    margin-bottom: 22px;
-    border-bottom: 1px solid #232c34;
-  }
-
-  .lx-tab {
-    flex: 1;
-    padding: 10px;
+  .lg-toggle button {
+    padding: 10px 12px;
+    border: none;
+    border-radius: 999px;
     background: transparent;
-    border: none;
-    color: #8b98a1;
+    color: var(--text-secondary, #8b929b);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
     cursor: pointer;
-    font-family: 'Nunito Sans', sans-serif;
-    font-weight: 600;
-    font-size: 0.85rem;
-    transition: color 0.2s;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .lg-toggle button:hover { color: var(--text-primary, #eef0f2); }
+  .lg-toggle button[aria-selected="true"] {
+    background: var(--text-accent, #00e5b8);
+    color: var(--text-accent-ink, #04302a);
   }
 
-  .lx-tab.active {
-    color: #2dd4bf;
-    border-bottom: 2px solid #2dd4bf;
-  }
-
-  .lx-input-wrap { margin-bottom: 15px; }
-
-  .lx-label {
+  /* Campos */
+  .lg-field { margin-bottom: 18px; }
+  .lg-label {
     display: block;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #8b98a1;
     margin-bottom: 6px;
-  }
-
-  .lx-input, .lx-select {
-    width: 100%;
-    padding: 11px 15px;
-    background: #0d1117;
-    border: 1px solid #232c34;
-    border-radius: 12px;
-    color: #eef2f5;
-    font-family: 'Nunito Sans', sans-serif;
-    font-size: 0.9rem;
-    outline: none;
-    transition: all 0.2s;
-  }
-
-  .lx-input:focus, .lx-select:focus {
-    border-color: #2dd4bf;
-    box-shadow: 0 0 0 3px rgba(45,212,191,0.15);
-  }
-
-  .lx-input::placeholder { color: #4b5661; }
-  .lx-select { cursor: pointer; }
-
-  .lx-error {
-    background: rgba(248,81,73,0.1);
-    border: 1px solid rgba(248,81,73,0.3);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 0.8rem;
-    color: #f85149;
-    margin-bottom: 15px;
-  }
-
-  .lx-success {
-    background: rgba(45,212,191,0.1);
-    border: 1px solid rgba(45,212,191,0.3);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 0.8rem;
-    color: #2dd4bf;
-    margin-bottom: 15px;
-  }
-
-  .lx-btn {
-    width: 100%;
-    padding: 12px;
-    margin-top: 4px;
-    background: linear-gradient(135deg, #0d9488, #14b8a6);
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    font-family: 'Nunito Sans', sans-serif;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    letter-spacing: 0.5px;
-    transition: all 0.2s;
+    color: var(--text-primary, #eef0f2);
+  }
+  .lg-input-wrap { position: relative; }
+  .lg-input {
+    width: 100%;
+    height: 46px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border-bright, #3a3f47);
+    background: var(--bg-card, #23262b);
+    color: var(--text-primary, #eef0f2);
+    font: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .lg-input::placeholder { color: var(--text-muted, #5b616a); }
+  .lg-input:focus {
+    border-color: var(--text-accent, #00e5b8);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-accent, #00e5b8) 22%, transparent);
+  }
+  .lg-input.has-action { padding-right: 70px; }
+  .lg-show {
+    position: absolute;
+    right: 6px; top: 50%;
+    transform: translateY(-50%);
+    padding: 6px 12px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary, #8b929b);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .lg-show:hover { color: var(--text-accent, #00e5b8); }
+
+  /* Tipo de vehículo: 3 opciones visibles, sin desplegable */
+  .lg-choices {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .lg-choice {
+    padding: 11px 6px;
+    border-radius: 14px;
+    border: 1px solid var(--border-bright, #3a3f47);
+    background: var(--bg-card, #23262b);
+    color: var(--text-secondary, #8b929b);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+  .lg-choice:hover { border-color: var(--text-accent, #00e5b8); }
+  .lg-choice[aria-checked="true"] {
+    border-color: var(--text-accent, #00e5b8);
+    background: var(--bg-active, #0c2420);
+    color: var(--text-accent, #00e5b8);
   }
 
-  .lx-btn:hover {
-    background: linear-gradient(135deg, #14b8a6, #2dd4bf);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(20,184,166,0.3);
+  /* Botón principal */
+  .lg-submit {
+    min-width: 180px;
+    height: 46px;
+    padding: 0 28px;
+    margin-top: 6px;
+    border: none;
+    border-radius: 999px;
+    background: var(--text-accent, #00e5b8);
+    color: var(--text-accent-ink, #04302a);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: filter 180ms ease, transform 180ms ease;
+  }
+  .lg-submit:hover:not(:disabled) { filter: brightness(1.08); }
+  .lg-submit:active:not(:disabled) { transform: scale(0.98); }
+  .lg-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .lg-msg {
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    font-size: 0.85rem;
+  }
+  .lg-msg.error {
+    background: var(--red-dim, #4a1111);
+    color: var(--red, #ff4d4f);
+    border: 1px solid var(--red, #ff4d4f);
+  }
+  .lg-msg.ok {
+    background: var(--green-dim, #173404);
+    color: var(--green, #3ecf6e);
+    border: 1px solid var(--green, #3ecf6e);
   }
 
-  .lx-btn:active  { transform: translateY(0); }
-  .lx-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .lg-page button:focus-visible,
+  .lg-page input:focus-visible {
+    outline: 2px solid var(--text-accent, #00e5b8);
+    outline-offset: 2px;
+  }
 
-  @media (max-width: 600px) {
-    .lx-left { display: none; }
+  /* Móvil: el panel izquierdo pasa a ser una cabecera compacta */
+  @media (max-width: 760px) {
+    .lg-page { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .lg-side {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 14px;
+      padding: 18px 20px;
+      border-right: none;
+      border-bottom: 1px solid var(--border-bright, #3a3f47);
+    }
+    .lg-logo { font-size: 1.8rem; }
+    .lg-brand-full { margin-top: 2px; }
+    .lg-version { display: none; }
+    .lg-side-text, .lg-side-foot { display: none; }
+    .lg-main { align-items: flex-start; padding-top: 28px; }
+    .lg-submit { width: 100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lg-page *, .lg-page *::after { animation: none !important; transition: none !important; }
   }
 `;
 
-// Tipo de vehículo → modo_preferido + tiene_auto.
-// Bicicleta no cuenta como "auto" (no tiene placa/kilometraje relevante);
-// Carro y Motocicleta sí, y ambos usan modo_preferido="carro".
-const TIPOS_VEHICULO = [
-  { value: "Bicicleta",   modoPreferido: "ciclista", tieneAuto: false },
-  { value: "Carro",       modoPreferido: "carro",     tieneAuto: true  },
-  { value: "Motocicleta", modoPreferido: "carro",     tieneAuto: true  },
-];
-
-// ─── Componente ───────────────────────────────────────────────────────────────
 export default function Login({ navigate, onLoginSuccess }) {
-  const [tab,      setTab]      = useState("login");
-  const [typed,    setTyped]    = useState("");
+  const [tab, setTab] = useState("login");
 
   // Login
-  const [lEmail,   setLEmail]   = useState("");
-  const [lPass,    setLPass]    = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [lUser, setLUser] = useState("");
+  const [lPass, setLPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Registro
-  const [rNombre,  setRNombre]  = useState("");
-  const [rEmail,   setREmail]   = useState("");
-  const [rPass,    setRPass]    = useState("");
-  const [rConf,    setRConf]    = useState("");
-  const [rTipo,    setRTipo]    = useState("Carro");
+  const [rNombre, setRNombre] = useState("");
+  const [rEmail, setREmail] = useState("");
+  const [rPass, setRPass] = useState("");
+  const [rConf, setRConf] = useState("");
+  const [rTipo, setRTipo] = useState("Carro");
   const [registrando, setRegistrando] = useState(false);
 
-  const [error,    setError]    = useState("");
-  const [success,  setSuccess]  = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const tagline = "Acceso al sistema";
+  // Título con efecto de escritura (se reescribe al cambiar de pestaña)
+  const titulo = tab === "login" ? "Bienvenido de nuevo" : "Crea tu cuenta";
+  const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
+    setTyped("");
     const iv = setInterval(() => {
-      setTyped(tagline.slice(0, i + 1));
       i++;
-      if (i >= tagline.length) clearInterval(iv);
-    }, 65);
+      setTyped(titulo.slice(0, i));
+      if (i >= titulo.length) clearInterval(iv);
+    }, 45);
     return () => clearInterval(iv);
-  }, []);
+  }, [titulo]);
 
   const clearMsgs = () => { setError(""); setSuccess(""); };
-  const switchTab = (t) => { setTab(t); clearMsgs(); };
+  const switchTab = (t) => { setTab(t); setShowPass(false); clearMsgs(); };
 
   const guardarSesionUsuario = (datosUsuario) => {
     localStorage.setItem("idas_usuario", JSON.stringify(datosUsuario));
     onLoginSuccess?.(datosUsuario);
   };
 
-  // ── Login ──
   const handleLogin = async (e) => {
     e.preventDefault();
     clearMsgs();
-    if (!lEmail || !lPass) { setError("Completa todos los campos."); return; }
+    if (!lUser.trim() || !lPass) { setError("Escribe tu usuario o email y tu contraseña."); return; }
 
     setLoading(true);
     try {
-      const datos = await apiLogin(lEmail, lPass);
+      const datos = await apiLogin(lUser.trim(), lPass);
       guardarSesionUsuario(datos);
       navigate(ROUTES.DASHBOARD);
-    } catch (err) {
-      setError("Email o contraseña incorrectos.");
+    } catch {
+      setError("Usuario/email o contraseña incorrectos. Revisa los datos e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Registro ──
   const handleRegistro = async (e) => {
     e.preventDefault();
     clearMsgs();
-    if (!rNombre || !rEmail || !rPass || !rConf) { setError("Completa todos los campos."); return; }
-    if (rPass !== rConf)                          { setError("Las contraseñas no coinciden."); return; }
-    if (rPass.length < 4)                         { setError("La contraseña debe tener al menos 4 caracteres."); return; }
+    if (!rNombre.trim() || !rEmail.trim() || !rPass || !rConf) { setError("Completa todos los campos."); return; }
+    if (rPass !== rConf) { setError("Las contraseñas no coinciden."); return; }
+    if (rPass.length < 4) { setError("La contraseña debe tener al menos 4 caracteres."); return; }
 
     const tipoInfo = TIPOS_VEHICULO.find((t) => t.value === rTipo);
 
     setRegistrando(true);
     try {
       await registrarUsuario({
-        nombre: rNombre,
-        email: rEmail,
+        nombre: rNombre.trim(),
+        email: rEmail.trim(),
         password: rPass,
         modo_preferido: tipoInfo.modoPreferido,
         tiene_auto: tipoInfo.tieneAuto,
         vehiculo: tipoInfo.tieneAuto ? { tipo: rTipo.toLowerCase() } : undefined,
       });
-      setSuccess(`Cuenta creada para "${rNombre}". Ahora puedes iniciar sesión.`);
+      setSuccess(`Cuenta creada para "${rNombre.trim()}". Ya puedes iniciar sesión.`);
       setRNombre(""); setREmail(""); setRPass(""); setRConf(""); setRTipo("Carro");
       setTimeout(() => switchTab("login"), 1200);
     } catch (err) {
-      setError(err.message || "No se pudo crear la cuenta.");
+      setError(err.message || "No se pudo crear la cuenta. Intenta de nuevo.");
     } finally {
       setRegistrando(false);
     }
   };
 
+  const passwordField = (id, label, value, onChange, { withToggle = false, autoComplete } = {}) => (
+    <div className="lg-field">
+      <label className="lg-label" htmlFor={id}>{label}</label>
+      <div className="lg-input-wrap">
+        <input
+          id={id}
+          className={`lg-input${withToggle ? " has-action" : ""}`}
+          type={withToggle && showPass ? "text" : "password"}
+          placeholder="••••••••"
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => { onChange(e.target.value); clearMsgs(); }}
+        />
+        {withToggle && (
+          <button
+            type="button"
+            className="lg-show"
+            onClick={() => setShowPass((v) => !v)}
+            aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+          >
+            {showPass ? "Ocultar" : "Ver"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <style>{styles}</style>
-      <div className="lx-bg">
-        <div className="lx-glow" />
+      <div className="lg-page">
+        <div className="lg-glow" />
 
-        <div className="lx-wrap">
-
-          {/* ── Panel izquierdo ── */}
-          <div className="lx-left">
-            <div className="lx-brand">
-              <div className="lx-logo">IDAS</div>
-              <div className="lx-logoname">Intelligent Driving Support System</div>
-              <span className="lx-version">v0.1 · PROTOTIPO</span>
-            </div>
-
-            <ul className="lx-features">
-              <li>Detección de objetos en tiempo real</li>
-              <li>Simulación vehicular avanzada</li>
-              <li>Modo bicicleta</li>
-              <li>Alertas inteligentes de conducción</li>
-              <li>Panel de análisis integrado</li>
-            </ul>
-
-            <div className="lx-status-row">
-              <span className="lx-dot" />
-              Sistema activo · v0.1 · Prototipo
-            </div>
+        {/* ── Panel izquierdo ── */}
+        <aside className="lg-side">
+          <div className="lg-brand">
+            <div className="lg-logo">IDAS</div>
+            <div className="lg-brand-full">Intelligent Driving Support System</div>
+            <span className="lg-version">v0.1 · PROTOTIPO</span>
           </div>
+          <p className="lg-side-text">
+            Detecta vehículos, peatones y ciclistas a tu alrededor y te avisa a tiempo.
+          </p>
+          <div className="lg-side-foot"><span className="lg-dot" />Sistema activo · Prototipo v0.1</div>
+        </aside>
 
-          {/* ── Panel derecho ── */}
-          <div className="lx-right">
-            <div className="lx-form-title">
-              {typed}<span className="lx-cursor">|</span>
-            </div>
-            <div className="lx-form-sub">Ingresa tus credenciales para continuar</div>
+        {/* ── Panel derecho ── */}
+        <main className="lg-main">
+          <div className="lg-form-col">
+            <h1 className="lg-title" aria-label={titulo}>
+              {typed}<span className="lg-cursor" aria-hidden="true">|</span>
+            </h1>
+            <p className="lg-sub">
+              {tab === "login"
+                ? "Inicia sesión para continuar."
+                : "Solo te toma un minuto."}
+            </p>
 
-            <div className="lx-tabs">
+            <div className="lg-toggle" role="tablist" aria-label="Acceso">
               <button
-                className={`lx-tab${tab === "login" ? " active" : ""}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === "login"}
                 onClick={() => switchTab("login")}
               >
                 Iniciar sesión
               </button>
               <button
-                className={`lx-tab${tab === "registro" ? " active" : ""}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === "registro"}
                 onClick={() => switchTab("registro")}
               >
                 Crear cuenta
               </button>
             </div>
 
-            {error   && <div className="lx-error">{error}</div>}
-            {success && <div className="lx-success">{success}</div>}
+            {error && <div className="lg-msg error" role="alert">{error}</div>}
+            {success && <div className="lg-msg ok" role="status">{success}</div>}
 
-            {/* ── Login ── */}
             {tab === "login" && (
-              <form onSubmit={handleLogin}>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Email</label>
+              <form onSubmit={handleLogin} noValidate>
+                <div className="lg-field">
+                  <label className="lg-label" htmlFor="lg-user">Usuario / email</label>
                   <input
-                    className="lx-input"
-                    type="email"
+                    id="lg-user"
+                    className="lg-input"
+                    type="text"
                     placeholder="tu@email.com"
-                    value={lEmail}
-                    onChange={e => { setLEmail(e.target.value); clearMsgs(); }}
-                    onKeyDown={e => e.key === "Enter" && document.getElementById("lx-pass")?.focus()}
+                    autoComplete="username"
+                    value={lUser}
+                    onChange={(e) => { setLUser(e.target.value); clearMsgs(); }}
                     autoFocus
                   />
                 </div>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Contraseña</label>
-                  <input
-                    id="lx-pass"
-                    className="lx-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={lPass}
-                    onChange={e => { setLPass(e.target.value); clearMsgs(); }}
-                  />
-                </div>
-                <button className="lx-btn" type="submit" disabled={loading}>
-                  {loading ? "Verificando..." : "Iniciar sesión"}
+                {passwordField("lg-pass", "Contraseña", lPass, setLPass, {
+                  withToggle: true,
+                  autoComplete: "current-password",
+                })}
+                <button className="lg-submit" type="submit" disabled={loading}>
+                  {loading ? "Verificando…" : "Iniciar sesión"}
                 </button>
               </form>
             )}
 
-            {/* ── Registro ── */}
             {tab === "registro" && (
-              <form onSubmit={handleRegistro}>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Nombre</label>
+              <form onSubmit={handleRegistro} noValidate>
+                <div className="lg-field">
+                  <label className="lg-label" htmlFor="lg-nombre">Nombre</label>
                   <input
-                    className="lx-input"
+                    id="lg-nombre"
+                    className="lg-input"
                     type="text"
                     placeholder="Tu nombre"
+                    autoComplete="name"
                     value={rNombre}
-                    onChange={e => { setRNombre(e.target.value); clearMsgs(); }}
+                    onChange={(e) => { setRNombre(e.target.value); clearMsgs(); }}
                   />
                 </div>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Email</label>
+                <div className="lg-field">
+                  <label className="lg-label" htmlFor="lg-email">Email</label>
                   <input
-                    className="lx-input"
+                    id="lg-email"
+                    className="lg-input"
                     type="email"
                     placeholder="tu@email.com"
+                    autoComplete="email"
                     value={rEmail}
-                    onChange={e => { setREmail(e.target.value); clearMsgs(); }}
+                    onChange={(e) => { setREmail(e.target.value); clearMsgs(); }}
                   />
                 </div>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Contraseña</label>
-                  <input
-                    className="lx-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={rPass}
-                    onChange={e => { setRPass(e.target.value); clearMsgs(); }}
-                  />
-                </div>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Confirmar contraseña</label>
-                  <input
-                    className="lx-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={rConf}
-                    onChange={e => { setRConf(e.target.value); clearMsgs(); }}
-                  />
-                </div>
-                <div className="lx-input-wrap">
-                  <label className="lx-label">Tipo de vehículo</label>
-                  <select
-                    className="lx-select"
-                    value={rTipo}
-                    onChange={e => setRTipo(e.target.value)}
-                  >
+                {passwordField("lg-rpass", "Contraseña", rPass, setRPass, {
+                  withToggle: true,
+                  autoComplete: "new-password",
+                })}
+                {passwordField("lg-rconf", "Confirmar contraseña", rConf, setRConf, {
+                  autoComplete: "new-password",
+                })}
+                <div className="lg-field">
+                  <span className="lg-label" id="lg-tipo-label">¿Cómo te mueves?</span>
+                  <div className="lg-choices" role="radiogroup" aria-labelledby="lg-tipo-label">
                     {TIPOS_VEHICULO.map((t) => (
-                      <option key={t.value} value={t.value}>{t.value}</option>
+                      <button
+                        key={t.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={rTipo === t.value}
+                        className="lg-choice"
+                        onClick={() => setRTipo(t.value)}
+                      >
+                        {t.value}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-                <button className="lx-btn" type="submit" disabled={registrando}>
-                  {registrando ? "Creando..." : "Crear cuenta"}
+                <button className="lg-submit" type="submit" disabled={registrando}>
+                  {registrando ? "Creando…" : "Crear cuenta"}
                 </button>
               </form>
             )}
           </div>
+        </main>
 
-        </div>
       </div>
     </>
   );

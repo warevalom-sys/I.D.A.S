@@ -1,0 +1,262 @@
+/* ──────────────────────────────────────────
+   HOME (Dashboard) — pensado para usarse rápido
+   mientras se conduce: pocos elementos, botones
+   grandes, texto legible y colores de riesgo claros.
+   Usa las variables de tema de App.css (claro/oscuro).
+   ────────────────────────────────────────── */
+
+@keyframes hmPulse {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.hm { max-width: 960px; margin: 0 auto; }
+
+/* ── Encabezado ── */
+.hm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.hm-greeting {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+.hm-greeting-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+.hm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  border: 1px solid var(--text-accent);
+  color: var(--text-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+.hm-greeting-sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+.hm-system {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-card);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+}
+.hm-dot {
+  position: relative;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.hm-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--green);
+  animation: hmPulse 2s ease-out infinite;
+}
+
+/* ── Grilla: acción principal + estado ── */
+.hm-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 14px;
+}
+
+/* ── Botón principal ── */
+.hm-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 220px;
+  padding: 24px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 20px;
+  border: 1px solid var(--text-accent);
+  background: linear-gradient(160deg, var(--bg-active) 0%, var(--bg-card) 100%);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.hm-hero:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--text-accent) 18%, transparent);
+}
+.hm-hero:active { transform: scale(0.99); }
+.hm-hero-icon {
+  width: 64px; height: 64px;
+  border-radius: 18px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--text-accent) 16%, transparent);
+  color: var(--text-accent);
+}
+.hm-hero-body { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.hm-hero-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+}
+.hm-hero-desc {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 42ch;
+}
+.hm-hero-cta {
+  align-self: stretch;
+  text-align: center;
+  padding: 16px 24px;
+  border-radius: 999px;
+  background: var(--text-accent);
+  color: var(--text-accent-ink);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* ── Estado de riesgo ── */
+.hm-risk {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-top-width: 6px;
+}
+.hm-risk-icon {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+}
+.hm-risk-label {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+.hm-risk-detail {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.hm-risk-body { flex: 1; }
+.hm-risk-session {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.hm-risk.accent-green { border-top-color: var(--green); }
+.hm-risk.accent-green .hm-risk-icon { background: var(--green-dim); color: var(--green); }
+.hm-risk.accent-amber { border-top-color: var(--orange); }
+.hm-risk.accent-amber .hm-risk-icon { background: var(--orange-dim); color: var(--orange); }
+.hm-risk.accent-red   { border-top-color: var(--red); }
+.hm-risk.accent-red   .hm-risk-icon { background: var(--red-dim); color: var(--red); }
+
+/* ── Consejo según el tipo de usuario ── */
+.hm-tip {
+  margin-top: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* ── Otro modo ── */
+.hm-section {
+  margin: 28px 0 10px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.hm-mode {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 18px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 16px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  transition: background var(--transition), border-color var(--transition);
+}
+.hm-mode:hover { background: var(--bg-hover); border-color: var(--text-accent); }
+.hm-mode-icon {
+  width: 48px; height: 48px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+  color: var(--text-accent);
+}
+.hm-mode-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.hm-mode-title { font-size: 16px; font-weight: 700; }
+.hm-mode-desc { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+.hm-mode-chevron { font-size: 26px; color: var(--text-muted); }
+
+/* ── Nota de seguridad ── */
+.hm-note {
+  margin-top: 24px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--orange);
+  border-radius: 0 10px 10px 0;
+  background: var(--bg-card);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── Foco visible (teclado) ── */
+.hm button:focus-visible {
+  outline: 3px solid var(--text-accent);
+  outline-offset: 3px;
+}
+
+/* ── Móvil: una sola columna, botones a lo ancho ── */
+@media (max-width: 768px) {
+  .hm-header { flex-direction: column; gap: 12px; }
+  .hm-greeting { font-size: 24px; }
+  .hm-grid { grid-template-columns: 1fr; }
+  .hm-hero { min-height: 0; padding: 20px; }
+  .hm-hero-title { font-size: 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm *, .hm *::after { animation: none !important; transition: none !important; }
+}

@@ -1,44 +1,46 @@
 import { useState } from "react";
 import { ROUTES } from "../Routes";
+import { perfilDe, tr } from "../config/perfiles";
+import VehicleIcon from "./VehicleIcon";
+import "../styles/sidebar.css";
 
-/* Antes: "Simulación" y "Modo experimental" eran grupos desplegables,
-   pero cada uno solo tenía un hijo real (Peatón salió de alcance).
-   Un grupo con un solo hijo es un clic extra sin ningún beneficio,
-   así que ahora todo vive plano en el nivel superior. */
-function buildMenu(t) {
+/* El menú depende del tipo de usuario: cada uno ve SU modo principal
+   (bicicleta → Modo bicicleta; carro/moto → Simulación vehicular).
+   El otro modo se abre desde el Inicio. */
+function buildMenu(perfil) {
   return [
     { labelKey: "sidebar.menu.home", icon: "⬡", route: ROUTES.DASHBOARD },
-    { labelKey: "sidebar.menu.simVehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR },
-    { labelKey: "sidebar.menu.bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA },
+    { labelKey: perfil.menuKey, vehicle: perfil.id, route: perfil.route },
     { labelKey: "sidebar.menu.analisis", icon: "◱", route: ROUTES.ANALISIS, soon: true },
-    { labelKey: "sidebar.menu.configuracion", icon: "◎", route: ROUTES.CONFIGURACION, soon: true },
+    { labelKey: "sidebar.menu.configuracion", icon: "⚙", route: ROUTES.CONFIGURACION },
     { labelKey: "sidebar.menu.about", icon: "◯", route: ROUTES.ABOUT },
   ];
 }
 
-/* Barra inferior móvil: los dos modos que sí están en alcance este
-   semestre (vehicular + bicicleta), Inicio, y todo lo demás en "Más". */
-function buildBottomNav() {
+function buildBottomNav(perfil) {
   return [
     { labelKey: "sidebar.menu.home", icon: "⬡", route: ROUTES.DASHBOARD },
-    { labelKey: "sidebar.bottomNav.vehicular", icon: "◻", route: ROUTES.SIM_VEHICULAR },
-    { labelKey: "sidebar.bottomNav.bicicleta", icon: "◎", route: ROUTES.EXP_BICICLETA },
+    { labelKey: perfil.bottomKey, vehicle: perfil.id, route: perfil.route },
   ];
 }
 
 function buildMoreItems() {
   return [
     { labelKey: "sidebar.menu.analisis", icon: "◱", route: ROUTES.ANALISIS, soon: true },
-    { labelKey: "sidebar.menu.configuracion", icon: "◎", route: ROUTES.CONFIGURACION, soon: true },
+    { labelKey: "sidebar.menu.configuracion", icon: "⚙", route: ROUTES.CONFIGURACION },
     { labelKey: "sidebar.menu.about", icon: "◯", route: ROUTES.ABOUT },
   ];
 }
 
-export default function Sidebar({ currentRoute, navigate, isOpen, onToggle, t = (key) => key }) {
+const Icono = ({ item, size }) =>
+  item.vehicle ? <VehicleIcon tipo={item.vehicle} size={size} /> : <>{item.icon}</>;
+
+export default function Sidebar({ currentRoute, navigate, isOpen, onToggle, user, t = (key) => key }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const MENU = buildMenu(t);
-  const BOTTOM_NAV = buildBottomNav();
+  const perfil = perfilDe(user);
+  const MENU = buildMenu(perfil);
+  const BOTTOM_NAV = buildBottomNav(perfil);
   const MORE_ITEMS = buildMoreItems();
 
   const goTo = (route) => {
@@ -47,56 +49,82 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle, t = 
   };
 
   const isMoreActive = MORE_ITEMS.some((item) => item.route === currentRoute);
+  const nombre = user?.name || "Usuario";
+  const iniciales = user?.initials || "US";
 
   return (
     <>
-      {/* ── SIDEBAR: escritorio / modo carro ── */}
-      <aside className={`sidebar ${isOpen ? "open" : "closed"}`}>
-        <div className="sidebar-logo" onClick={() => navigate(ROUTES.DASHBOARD)}>
-          <span className="logo-icon">⬡</span>
-          {isOpen && (
-            <div className="logo-text">
-
-              <span className="logo-main">I.D.A.S</span>
-              <span className="logo-sub">{t("sidebar.logoSub")}</span>
-            </div>
+      {/* ── SIDEBAR: escritorio ── */}
+      <aside className={`sb ${isOpen ? "sb-open" : "sb-closed"}`}>
+        <button
+          className="sb-logo"
+          onClick={() => navigate(ROUTES.DASHBOARD)}
+          title={!isOpen ? "I.D.A.S" : undefined}
+        >
+          {isOpen ? (
+            <span className="sb-logo-text">
+              <span className="sb-logo-main">IDAS</span>
+              <span className="sb-logo-sub">{t("sidebar.logoSub")}</span>
+            </span>
+          ) : (
+            <span className="sb-logo-mark">⬡</span>
           )}
-        </div>
+        </button>
 
-        <nav className="sidebar-nav">
+        <nav className="sb-nav" aria-label="Navegación principal">
           {MENU.map((item) => (
             <button
               key={item.route}
-              className={`nav-item top-level ${currentRoute === item.route ? "active" : ""} ${item.soon ? "soon" : ""}`}
+              className={`sb-item${currentRoute === item.route ? " active" : ""}`}
               onClick={() => navigate(item.route)}
-              title={!isOpen ? t(item.labelKey) : ""}
+              title={!isOpen ? t(item.labelKey) : undefined}
+              aria-current={currentRoute === item.route ? "page" : undefined}
             >
-              <span className="nav-icon">{item.icon}</span>
+              <span className="sb-item-icon"><Icono item={item} size={20} /></span>
               {isOpen && (
                 <>
-                  <span className="nav-label">{t(item.labelKey)}</span>
-                  {item.soon && <span className="soon-badge">{t("sidebar.soon")}</span>}
+                  <span className="sb-item-label">{t(item.labelKey)}</span>
+                  {item.soon && <span className="sb-soon">{t("sidebar.soon")}</span>}
                 </>
               )}
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          {isOpen && (
-            <div className="keyboard-hints">
-              <span>{t("sidebar.hints.navigate")}</span>
-              <span>{t("sidebar.hints.home")}</span>
-              <span>{t("sidebar.hints.menu")}</span>
-            </div>
-          )}
-          <button className="toggle-btn" onClick={onToggle} title={t("sidebar.toggleTitle")}>
-            {isOpen ? "◂" : "▸"}
-          </button>
+        <div className="sb-footer">
+          <div className="sb-user" title={!isOpen ? `${nombre} · ${perfil.label}` : undefined}>
+            <span className="sb-avatar">{iniciales}</span>
+            {isOpen && (
+              <span className="sb-user-body">
+                <span className="sb-user-name">{nombre}</span>
+                <span className="sb-user-type">
+                  <VehicleIcon tipo={perfil.id} size={14} />
+                  {tr(t, `profile.${perfil.id}`, perfil.label)}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <div className="sb-bottom-row">
+            {isOpen && (
+              <span className="sb-status">
+                <span className="sb-dot" />
+                {t("topbar.systemActive")}
+              </span>
+            )}
+            <button
+              className="sb-toggle"
+              onClick={onToggle}
+              title={t("sidebar.toggleTitle")}
+              aria-label={t("sidebar.toggleTitle")}
+            >
+              {isOpen ? "◂" : "▸"}
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* ── BARRA INFERIOR: móvil (vehicular / bici) ── */}
+      {/* ── BARRA INFERIOR: móvil ── */}
       <nav className="bottom-nav" aria-label="Navegación principal">
         {BOTTOM_NAV.map((item) => (
           <button
@@ -104,7 +132,7 @@ export default function Sidebar({ currentRoute, navigate, isOpen, onToggle, t = 
             className={`bottom-nav-item ${currentRoute === item.route ? "active" : ""}`}
             onClick={() => goTo(item.route)}
           >
-            <span className="bottom-nav-icon">{item.icon}</span>
+            <span className="bottom-nav-icon"><Icono item={item} size={20} /></span>
             <span className="bottom-nav-label">{t(item.labelKey)}</span>
           </button>
         ))}

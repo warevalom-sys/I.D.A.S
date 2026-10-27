@@ -1,0 +1,308 @@
+/* ──────────────────────────────────────────
+   CONFIGURACIÓN — mismo lenguaje del login y de
+   la barra lateral: tarjeta de perfil en verde
+   oscuro, opciones en píldora, botones grandes.
+   Usa las variables de tema de App.css.
+   ────────────────────────────────────────── */
+
+.st { max-width: 720px; margin: 0 auto; }
+
+/* ── Encabezado ── */
+.st-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.st-h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Perfil (mismo verde que la barra lateral) ── */
+.st-profile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 20px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #0e2621 0%, #0f1419 100%);
+  border: 1px solid #1b232b;
+}
+.st-profile::after {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34,211,238,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.st-avatar {
+  display: grid;
+  place-items: center;
+  width: 60px; height: 60px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #04302a;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.st-profile-body { position: relative; z-index: 1; min-width: 0; }
+.st-profile-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: #eef2f5;
+}
+.st-profile-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+}
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(45,212,191,0.45);
+  color: #2dd4bf;
+  font-size: 12px;
+  font-weight: 700;
+}
+.st-profile-mode { font-size: 13px; color: #9aa5ad; }
+
+/* ── Secciones ── */
+.st-section {
+  margin-bottom: 16px;
+  padding: 6px 20px 8px;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+}
+.st-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 6px;
+}
+.st-section-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.st-section-sub { margin-top: 2px; font-size: 13px; color: var(--text-secondary); }
+
+/* ── Filas ── */
+.st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 60px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.st-section-head + .st-row { border-top: none; }
+.st-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.st-row-label { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.st-row-desc { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+.st-row-control { flex-shrink: 0; }
+
+/* Interruptor grande */
+.st-toggle {
+  position: relative;
+  display: inline-block;
+  width: 52px; height: 30px;
+}
+.st-toggle input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+.st-toggle-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border-bright);
+  transition: background 180ms ease;
+}
+.st-toggle-slider::before {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 180ms ease;
+}
+.st-toggle input:checked + .st-toggle-slider { background: var(--text-accent); }
+.st-toggle input:checked + .st-toggle-slider::before { transform: translateX(22px); }
+.st-toggle input:focus-visible + .st-toggle-slider { outline: 3px solid var(--text-accent); outline-offset: 3px; }
+
+/* Opciones en píldora (igual que el selector del login) */
+.st-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-bright);
+}
+.st-seg-btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+.st-seg-btn:hover { color: var(--text-primary); }
+.st-seg-btn[aria-checked="true"] { background: var(--text-accent); color: var(--text-accent-ink); }
+
+/* Selector */
+.st-select {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  cursor: pointer;
+}
+.st-select:focus { border-color: var(--text-accent); outline: none; }
+
+/* Volumen */
+.st-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 220px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.st-volume input { flex: 1; accent-color: var(--text-accent); }
+
+/* Botón de edición del vehículo */
+.st-pill-btn {
+  padding: 8px 18px;
+  border: 1px solid var(--text-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-accent);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+.st-pill-btn:hover { background: var(--bg-active); }
+.st-pill-btn.active { background: var(--text-accent); color: var(--text-accent-ink); }
+
+/* Vehículo */
+.st-vehicle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 10px 0 16px;
+}
+.st-field { display: flex; flex-direction: column; gap: 6px; }
+.st-field label { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.st-input {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.st-input:focus {
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-accent) 22%, transparent);
+}
+.st-input:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+/* Acerca de */
+.st-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 60px;
+  margin-bottom: 16px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.st-link-row:hover { background: var(--bg-hover); border-color: var(--text-accent); }
+
+/* Guardar */
+.st-save {
+  width: 100%;
+  min-height: 60px;
+  border: none;
+  border-radius: 999px;
+  background: var(--text-accent);
+  color: var(--text-accent-ink);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: filter 180ms ease, transform 180ms ease;
+}
+.st-save:hover { filter: brightness(1.08); }
+.st-save:active { transform: scale(0.99); }
+
+/* Foco visible (teclado) */
+.st button:focus-visible,
+.st select:focus-visible {
+  outline: 3px solid var(--text-accent);
+  outline-offset: 3px;
+}
+
+/* ── Móvil ── */
+@media (max-width: 768px) {
+  .st-section { padding: 4px 16px 6px; }
+  .st-row { flex-wrap: wrap; }
+  .st-vehicle-grid { grid-template-columns: 1fr; }
+  .st-volume { width: 100%; }
+  .st-profile { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st *, .st *::after, .st *::before { transition: none !important; }
+}

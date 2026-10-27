@@ -1,0 +1,546 @@
+/* ──────────────────────────────────────────
+   SIDEBAR — mismo lenguaje visual del login:
+   fondo verde oscuro en degradado, logo IDAS con
+   degradado verde-cian, opciones en forma de píldora
+   y punto pulsante de "sistema activo".
+   Es siempre oscuro (igual que el panel del login),
+   tanto en tema claro como oscuro.
+   ────────────────────────────────────────── */
+
+@keyframes sbPulse {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.sb {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width, 240px);
+  overflow: hidden;
+  z-index: 100;
+  background: linear-gradient(160deg, #0e2621 0%, #0f1419 100%);
+  border-right: 1px solid #1b232b;
+  color: #9aa5ad;
+  font-family: var(--font-ui, 'Nunito Sans', sans-serif);
+  transition: width var(--transition, 180ms ease);
+}
+.sb.sb-closed { width: 76px; }
+
+/* Brillo cian en la esquina, como en el login */
+.sb::after {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34,211,238,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Logo ── */
+.sb-logo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  min-height: 84px;
+  padding: 22px 22px 18px;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.sb-closed .sb-logo { justify-content: center; padding: 22px 0 18px; }
+.sb-logo-text { display: flex; flex-direction: column; }
+.sb-logo-main {
+  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  line-height: 1;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sb-logo-sub {
+  margin-top: 6px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #8b98a1;
+}
+.sb-logo-mark {
+  font-size: 28px;
+  line-height: 1;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Navegación ── */
+.sb-nav {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 12px;
+  overflow-y: auto;
+}
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #9aa5ad;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.sb-item:hover {
+  background: rgba(45,212,191,0.10);
+  color: #eef2f5;
+}
+.sb-item.active {
+  background: #2dd4bf;
+  color: #04302a;
+}
+.sb-item-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  flex-shrink: 0;
+  font-size: 17px;
+  line-height: 1;
+}
+.sb-item-label { flex: 1; }
+.sb-soon {
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(45,212,191,0.35);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #2dd4bf;
+}
+.sb-item.active .sb-soon { border-color: rgba(4,48,42,0.4); color: #04302a; }
+.sb-closed .sb-item { justify-content: center; padding: 0; }
+
+/* ── Pie: usuario + estado + colapsar ── */
+.sb-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.sb-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+.sb-closed .sb-user { justify-content: center; padding: 6px 0; background: transparent; }
+.sb-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #04302a;
+  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-size: 14px;
+  font-weight: 800;
+}
+.sb-user-body { display: flex; flex-direction: column; min-width: 0; }
+.sb-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+  color: #eef2f5;
+}
+.sb-user-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #2dd4bf;
+}
+.sb-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sb-closed .sb-bottom-row { justify-content: center; }
+.sb-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 6px;
+  font-size: 12px;
+  color: #9aa5ad;
+}
+.sb-dot {
+  position: relative;
+  width: 8px; height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2dd4bf;
+  box-shadow: 0 0 7px rgba(45,212,191,0.8);
+}
+.sb-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid #2dd4bf;
+  animation: sbPulse 2s ease-out infinite;
+}
+.sb-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  background: transparent;
+  color: #9aa5ad;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+.sb-toggle:hover { background: rgba(45,212,191,0.10); color: #2dd4bf; }
+
+/* ── Foco visible (teclado) ── */
+.sb button:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
+/* En móvil se usa la barra inferior */
+@media (max-width: 768px) {
+  .sb { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb *, .sb *::after { animation: none !important; transition: none !important; }
+}
+
+/* ──────────────────────────────────────────
+   FONDO GENERAL = MISMO VERDE DE LA SIDEBAR
+   ────────────────────────────────────────── */
+
+/* Todo el área derecha (topbar + contenido) con el degradado verde.
+   Las variables oscuras se fijan aquí para que se vea igual en tema claro. */
+.main-area {
+  --bg-base: transparent;
+  --bg-surface: rgba(255, 255, 255, 0.05);
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-hover: rgba(45, 212, 191, 0.10);
+  --bg-active: rgba(45, 212, 191, 0.14);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-bright: rgba(45, 212, 191, 0.20);
+  --text-primary: #eef2f5;
+  --text-secondary: #9aa5ad;
+  --text-muted: #8b98a1;
+  --text-accent: #2dd4bf;
+  --text-accent-ink: #04302a;
+  --green: #3ecf6e;
+  --green-dim: rgba(62, 207, 110, 0.15);
+  --orange: #ff9f43;
+  --orange-dim: rgba(255, 159, 67, 0.15);
+  --red: #ff4d4f;
+  --red-dim: rgba(255, 77, 79, 0.15);
+
+  position: relative;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.10) 0%, transparent 45%),
+    linear-gradient(160deg, #0e2621 0%, #0f1419 60%);
+  color: #eef2f5;
+}
+
+/* La barra superior y el contenido dejan ver el degradado */
+.main-area .topbar {
+  background: rgba(14, 38, 33, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+}
+.main-area .page-content {
+  background: transparent;
+}
+
+/* Tarjetas: cristal translúcido sobre el fondo verde (ya no gris sólido) */
+.hm .hm-hero,
+.hm .hm-risk,
+.hm .hm-mode,
+.hm .hm-system,
+.hm .hm-note,
+.st .st-section,
+.st .st-link-row,
+.cv2 .cv2-risk,
+.cv2 .cv2-details,
+.cv2 .cv2-step,
+.cv2 .cv2-safety {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(45, 212, 191, 0.18);
+}
+
+/* Botón principal de Inicio con un poco más de verde */
+.hm .hm-hero {
+  background: linear-gradient(160deg, rgba(45, 212, 191, 0.16) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border-color: rgba(45, 212, 191, 0.55);
+}
+.hm .hm-hero:hover {
+  background: linear-gradient(160deg, rgba(45, 212, 191, 0.24) 0%, rgba(255, 255, 255, 0.04) 100%);
+}
+
+/* El perfil de Configuración ya es verde: lo dejamos un poco más sutil */
+.st .st-profile {
+  background: linear-gradient(160deg, rgba(45, 212, 191, 0.14) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border-color: rgba(45, 212, 191, 0.25);
+}
+
+/* Botones y campos de Configuración */
+.st .st-seg,
+.st .st-select,
+.st .st-input {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Visor de la cámara: negro con borde verde */
+.cv2 .cv-feed.cv2-feed { border-color: rgba(45, 212, 191, 0.25); }
+
+/* Botón "← Inicio" */
+.main-area .back-btn {
+  background: rgba(45, 212, 191, 0.06);
+  border-color: rgba(45, 212, 191, 0.35);
+  color: #2dd4bf;
+}
+.main-area .back-btn:hover { background: rgba(45, 212, 191, 0.16); }
+
+/* ──────────────────────────────────────────
+   MODO CLARO — mismos tonos verdes, versión suave
+   (la sidebar y el perfil de Configuración se quedan oscuros)
+   ────────────────────────────────────────── */
+
+/* Fondo y variables de toda el área derecha */
+[data-theme="light"] .main-area,
+.main-area[data-theme="light"] {
+  --bg-base: transparent;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-hover: rgba(15, 154, 130, 0.08);
+  --bg-active: rgba(15, 154, 130, 0.12);
+  --border: rgba(15, 154, 130, 0.14);
+  --border-bright: rgba(15, 154, 130, 0.28);
+  --text-primary: #12312c;
+  --text-secondary: #4b5f5b;
+  --text-muted: #7a8a87;
+  --text-accent: #0f9a82;
+  --text-accent-ink: #ffffff;
+  --green: #1f9d4d;
+  --green-dim: #e3f7e9;
+  --orange: #d97a1f;
+  --orange-dim: #fdecd8;
+  --red: #d93a3c;
+  --red-dim: #fbe4e4;
+
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.14) 0%, transparent 45%),
+    linear-gradient(160deg, #dff7f1 0%, #f3f8f7 60%);
+  color: #12312c;
+}
+
+[data-theme="light"] .main-area .topbar,
+.main-area[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(15, 154, 130, 0.14);
+}
+
+/* Tarjetas: blancas con borde verde suave (reinician las variables oscuras) */
+[data-theme="light"] .hm .hm-hero,
+[data-theme="light"] .hm .hm-risk,
+[data-theme="light"] .hm .hm-mode,
+[data-theme="light"] .hm .hm-system,
+[data-theme="light"] .hm .hm-note,
+[data-theme="light"] .st .st-section,
+[data-theme="light"] .st .st-link-row,
+[data-theme="light"] .cv2 .cv2-risk,
+[data-theme="light"] .cv2 .cv2-details,
+[data-theme="light"] .cv2 .cv2-step,
+[data-theme="light"] .cv2 .cv2-safety {
+  --text-primary: #12312c;
+  --text-secondary: #4b5f5b;
+  --text-muted: #7a8a87;
+  --border: rgba(15, 154, 130, 0.14);
+  --border-bright: rgba(15, 154, 130, 0.28);
+  --bg-surface: #ffffff;
+  --bg-hover: rgba(15, 154, 130, 0.08);
+  --bg-active: rgba(15, 154, 130, 0.12);
+
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(15, 154, 130, 0.22);
+  color: #12312c;
+  box-shadow: 0 2px 10px rgba(15, 154, 130, 0.06);
+}
+
+/* Botón principal de Inicio */
+[data-theme="light"] .hm .hm-hero {
+  background: linear-gradient(160deg, #d6f6ee 0%, #ffffff 100%);
+  border-color: #0f9a82;
+}
+[data-theme="light"] .hm .hm-hero:hover {
+  background: linear-gradient(160deg, #c6f1e6 0%, #ffffff 100%);
+}
+[data-theme="light"] .hm .hm-mode:hover,
+[data-theme="light"] .st .st-link-row:hover {
+  background: #e3faf5;
+  border-color: #0f9a82;
+}
+
+/* Brillo de esquina más sutil */
+[data-theme="light"] .hm .hm-hero::after,
+[data-theme="light"] .hm .hm-risk::after,
+[data-theme="light"] .st .st-section::after,
+[data-theme="light"] .cv2 .cv2-risk::after {
+  background: radial-gradient(circle, rgba(15, 154, 130, 0.08) 0%, transparent 70%);
+}
+
+/* Pasos de la cámara */
+[data-theme="light"] .cv2 .cv2-step.current { border-color: #0f9a82; }
+[data-theme="light"] .cv2 .cv2-step.done { border-color: #1f9d4d; color: #1f9d4d; }
+
+/* Configuración: el perfil sigue oscuro (igual que la sidebar) */
+[data-theme="light"] .st .st-profile {
+  background: linear-gradient(160deg, #0e2621 0%, #0f1419 100%);
+  border-color: #1b232b;
+}
+[data-theme="light"] .st .st-seg { background: rgba(15, 154, 130, 0.08); }
+[data-theme="light"] .st .st-select,
+[data-theme="light"] .st .st-input { background: #ffffff; }
+[data-theme="light"] .st .st-input:disabled { background: transparent; }
+[data-theme="light"] .st .st-toggle-slider { background: #c7ccd1; }
+
+/* Visor de cámara: sigue negro, borde verde */
+[data-theme="light"] .cv2 .cv-feed.cv2-feed { border-color: rgba(15, 154, 130, 0.35); }
+
+/* Botón "← Inicio" */
+[data-theme="light"] .main-area .back-btn {
+  background: rgba(15, 154, 130, 0.08);
+  border-color: rgba(15, 154, 130, 0.4);
+  color: #0f9a82;
+}
+[data-theme="light"] .main-area .back-btn:hover { background: rgba(15, 154, 130, 0.16); }
+
+/* ──────────────────────────────────────────
+   SIDEBAR EN MODO CLARO — verde claro y blanco
+   ────────────────────────────────────────── */
+
+[data-theme="light"] .sb {
+  background: linear-gradient(160deg, #dff7f1 0%, #ffffff 100%);
+  border-right: 1px solid rgba(15, 154, 130, 0.18);
+  color: #4b5f5b;
+}
+
+/* Brillo de esquina más sutil */
+[data-theme="light"] .sb::after {
+  background: radial-gradient(circle, rgba(15, 154, 130, 0.10) 0%, transparent 70%);
+}
+
+/* Logo */
+[data-theme="light"] .sb-logo { border-bottom: 1px solid rgba(15, 154, 130, 0.14); }
+[data-theme="light"] .sb-logo-main,
+[data-theme="light"] .sb-logo-mark {
+  background: linear-gradient(135deg, #0f9a82, #0891b2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+[data-theme="light"] .sb-logo-sub { color: #5b706c; }
+
+/* Opciones del menú */
+[data-theme="light"] .sb-item { color: #4b5f5b; }
+[data-theme="light"] .sb-item:hover {
+  background: rgba(15, 154, 130, 0.10);
+  color: #12312c;
+}
+[data-theme="light"] .sb-item.active {
+  background: #0f9a82;
+  color: #ffffff;
+}
+[data-theme="light"] .sb-soon {
+  border-color: rgba(15, 154, 130, 0.4);
+  color: #0f9a82;
+}
+[data-theme="light"] .sb-item.active .sb-soon {
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #ffffff;
+}
+
+/* Pie: usuario, estado y botón de colapsar */
+[data-theme="light"] .sb-footer { border-top: 1px solid rgba(15, 154, 130, 0.14); }
+[data-theme="light"] .sb-user { background: rgba(15, 154, 130, 0.07); }
+[data-theme="light"] .sb-closed .sb-user { background: transparent; }
+[data-theme="light"] .sb-avatar {
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #ffffff;
+}
+[data-theme="light"] .sb-user-name { color: #12312c; }
+[data-theme="light"] .sb-user-type { color: #0f9a82; }
+[data-theme="light"] .sb-status { color: #4b5f5b; }
+[data-theme="light"] .sb-dot {
+  background: #0f9a82;
+  box-shadow: 0 0 7px rgba(15, 154, 130, 0.6);
+}
+[data-theme="light"] .sb-dot::after { border-color: #0f9a82; }
+[data-theme="light"] .sb-toggle {
+  border-color: rgba(15, 154, 130, 0.3);
+  color: #4b5f5b;
+}
+[data-theme="light"] .sb-toggle:hover {
+  background: rgba(15, 154, 130, 0.10);
+  color: #0f9a82;
+}
+[data-theme="light"] .sb button:focus-visible { outline-color: #0f9a82; }
+
+/* Configuración: la tarjeta de perfil también clara */
+[data-theme="light"] .st .st-profile {
+  background: linear-gradient(160deg, #d6f6ee 0%, #ffffff 100%);
+  border-color: rgba(15, 154, 130, 0.25);
+}
+[data-theme="light"] .st .st-profile::after {
+  background: radial-gradient(circle, rgba(15, 154, 130, 0.10) 0%, transparent 70%);
+}
+[data-theme="light"] .st .st-avatar { color: #ffffff; }
+[data-theme="light"] .st .st-profile-name { color: #12312c; }
+[data-theme="light"] .st .st-profile-mode { color: #4b5f5b; }
+[data-theme="light"] .st .st-chip {
+  border-color: rgba(15, 154, 130, 0.5);
+  color: #0f9a82;
+}
