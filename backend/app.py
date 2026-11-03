@@ -1,13 +1,7 @@
-# app.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database.database import engine
-from database import models
-from database.models import Base
-
-Base.metadata.create_all(bind=engine)
-
+# Importamos las rutas de tus compañeros
 from routes.analizar import router as analizar_router
 from routes.auth import router as auth_router
 

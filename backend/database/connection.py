@@ -1,17 +1,15 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
 
-DATABASE_URL = "sqlite:///./idss.db"
+# Tu cadena de conexión directa a MongoDB Atlas
+MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://sdvg2005_db_user:Sergio2005.*@cluster0.8soead2.mongodb.net/")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
+# Cliente asíncrono de MongoDB
+client = AsyncIOMotorClient(MONGO_URL)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+# Base de datos principal
+database = client.idss_db
 
-Base = declarative_base()
+# Función de dependencia para FastAPI (reemplaza a SessionLocal)
+async def get_database():
+    return database

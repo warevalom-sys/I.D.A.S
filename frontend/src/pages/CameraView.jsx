@@ -50,10 +50,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   const cfgMeta = MODE_CONFIG[mode] || MODE_CONFIG.vehicular;
   const cfg = { ...cfgMeta, title: t(cfgMeta.titleKey), desc: t(cfgMeta.descKey) };
 
-  // En bicicleta se prioriza no distraer visualmente al usuario — el sonido
-  // ya carga la alerta. Vehicular/video sí muestran el feed completo con
-  // bounding boxes, borde de alerta y píldora de riesgo.
-  const feedVisualCompleto = mode !== "bicicleta";
+  // Forzamos en 'true' para que dibuje las cajas y textos de YOLO también en modo bicicleta durante las pruebas
+  const feedVisualCompleto = true;
 
   const videoRef     = useRef(null);
   const canvasRef    = useRef(null);
@@ -64,8 +62,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   const sesionIdRef  = useRef(null);
   const sesionFinalizadaRef = useRef(false);
 
-  // Grabación local del video (MediaRecorder) — el video nunca sube al
-  // backend, se guarda 100% en el dispositivo vía IndexedDB.
+  // Grabación local del video (MediaRecorder)
   const mediaRecorderRef = useRef(null);
   const chunksVideoRef   = useRef([]);
 
@@ -119,16 +116,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     return candidatos.find((tipo) => MediaRecorder.isTypeSupported(tipo)) || "";
   };
 
-  /**
-   * Inicia la grabación del stream de la cámara. No usa el stream del
-   * <video> (que puede tener transformaciones de reproducción), sino el
-   * MediaStream original que ya devolvió getUserMedia.
-   */
   const iniciarGrabacion = useCallback((stream) => {
-    if (typeof MediaRecorder === "undefined") {
-      console.warn("MediaRecorder no está disponible en este navegador — no se grabará video local.");
-      return;
-    }
+    if (typeof MediaRecorder === "undefined") return;
 
     chunksVideoRef.current = [];
     const mimeType = elegirMimeType();
@@ -152,21 +141,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         try {
           const uri = await guardarVideoLocal(sesion, blob);
           await registrarVideoLocal(sesion, uri);
-          console.log("Video local guardado:", uri, `(${(blob.size / 1024 / 1024).toFixed(1)} MB)`);
+          console.log("Video local guardado:", uri);
         } catch (err) {
-          // No interrumpe el flujo del usuario — solo se pierde el video,
-          // el análisis y las alertas ya quedaron guardados igual.
           console.error("Error guardando video local:", err);
         }
       };
 
-      recorder.onerror = (e) => {
-        console.error("Error del MediaRecorder:", e.error);
-      };
-
-      // timeslice de 1s: entrega chunks periódicamente en vez de un solo
-      // blob al final, para no perder toda la grabación si algo falla
-      // a medio camino.
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
     } catch (err) {
@@ -177,7 +157,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   const detenerGrabacion = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
-      recorder.stop(); // dispara onstop de forma asíncrona
+      recorder.stop();
     }
     mediaRecorderRef.current = null;
   }, []);
@@ -185,7 +165,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   useEffect(() => {
     return () => {
       clearInterval(intervaloRef.current);
-      detenerGrabacion(); // red de seguridad si se desmonta con la cámara activa
+      detenerGrabacion();
       if (videoRef.current?.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       }
@@ -250,9 +230,9 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     });
   }, [resultadoActual, analizando, fps]);
 
-  // ── Análisis ──────────────────────────────────────────
+  // ── Análisis y Dibujo en Canvas ────────────────────────
   const dibujarDetecciones = useCallback((objetos) => {
-    if (!feedVisualCompleto) return; // bicicleta: no se dibuja nada sobre el video
+    if (!feedVisualCompleto) return;
     const canvas = canvasRef.current;
     const video  = videoRef.current;
     if (!canvas || !video) return;
@@ -262,19 +242,22 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    if (!objetos || objetos.length === 0) return;
+
     objetos.forEach((obj) => {
       const { x, y, ancho, alto } = obj.bbox;
       const color = obj.clase === "persona" ? "#378add" : "#ff9f43";
 
       ctx.strokeStyle = color;
-      ctx.lineWidth   = 2;
+      ctx.lineWidth   = 3;
       ctx.strokeRect(x, y, ancho, alto);
 
       ctx.fillStyle = color;
-      ctx.fillRect(x, y - 20, ancho, 20);
-      ctx.fillStyle = "#0c0d0f";
-      ctx.font      = "600 11px Barlow, sans-serif";
-      ctx.fillText(`${obj.clase} ${Math.round(obj.confianza * 100)}%`, x + 4, y - 5);
+      ctx.fillRect(x, y - 24, ancho, 24);
+      ctx.fillStyle = "#ffffff";
+      ctx.font      = "600 12px Barlow, sans-serif";
+      // Corrección de la multiplicación del porcentaje corregida aquí:
+      ctx.fillText(`${obj.clase} ${Math.round(obj.confianza * 100)}%`, x + 6, y - 7);
     });
   }, [feedVisualCompleto]);
 
@@ -403,8 +386,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     ? <div className="feed-badge" style={{ color: "#3ecf6e" }}>{t("camera.backendConnected")}</div>
     : <div className="feed-badge" style={{ color: "#ff4d4f" }}>{t("camera.backendUnavailable")}</div>;
 
-  // Píldora de riesgo flotante — solo en modos con feed visual completo.
-  // En bicicleta, la alerta sonora es la única señal (ver reproducirAlerta).
   const RiesgoFlotante = () => (
     <div className="cv-feed-risk-badge">
       <div className="cv-feed-risk-badge-inner" style={{ color: riesgo.color, background: `${riesgo.color}1a` }}>
@@ -414,7 +395,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     </div>
   );
 
-  // ── Render ────────────────────────────────────────────
   const esBici = cfg.usaCamera;
   const tipoIcono = esBici ? "bicicleta" : user?.tipoVehiculo === "motocicleta" ? "motocicleta" : "carro";
   const listo = esBici ? camaraActiva : !!videoUrl;
@@ -427,7 +407,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         ? tr(t, "camera.ui.state.needCamera", "Activa la cámara para empezar")
         : tr(t, "camera.ui.state.needVideo", "Carga un video para empezar");
 
-  // Una sola acción principal a la vez: la que toca ahora.
   let accion;
   if (analizando) {
     accion = { label: t("camera.controls.pauseAnalysis"), onClick: detenerAnalisis, variant: "pause" };
@@ -474,7 +453,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         {/* ── FEED ── */}
         <div className="cv-feed cv2-feed">
 
-          {/* ── MODO VIDEO ── */}
           {cfg.usaVideo && (
             <div style={{ position: "relative", width: "100%", height: "100%" }}>
               <input
@@ -522,7 +500,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             </div>
           )}
 
-          {/* ── MODO CÁMARA (bicicleta) ── */}
           {cfg.usaCamera && (
             <div style={{ position: "relative", width: "100%", height: "100%" }}>
               {!camaraActiva && (
@@ -546,9 +523,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                 }}
               />
 
-              {/* En bicicleta no se dibuja el canvas — dibujarDetecciones()
-                  ya no hace nada en este modo, pero se mantiene el elemento
-                  oculto por si en algún punto quieren reactivarlo. */}
               <canvas
                 ref={canvasRef}
                 style={{
@@ -561,21 +535,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
 
               <AlertaRiesgoAlto />
               {feedVisualCompleto && camaraActiva && <RiesgoFlotante />}
-
-              {/* En bicicleta, mientras está activa, un indicador mínimo
-                  y calmado — sin parpadeo, sin bounding boxes. */}
-              {!feedVisualCompleto && camaraActiva && (
-                <div className="cv-feed-bici-status" style={{
-                  position: "absolute", bottom: 12, left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "rgba(13,17,23,0.85)",
-                  color: riesgo.color,
-                  padding: "6px 16px", borderRadius: 20,
-                  fontSize: "0.8rem", fontWeight: 600,
-                }}>
-                  {analizando ? riesgo.label : t("camera.paused")}
-                </div>
-              )}
 
               {error && (
                 <div style={{
@@ -600,7 +559,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         {/* ── PANEL LATERAL ── */}
         <div className="cv2-side">
 
-          {/* Pasos */}
           <ol className="cv2-steps" aria-label={tr(t, "camera.ui.steps", "Pasos")}>
             {pasos.map((p, i) => (
               <li
@@ -613,7 +571,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             ))}
           </ol>
 
-          {/* Sin conexión con el servidor */}
           {!backendConectado && (
             <div className="cv2-warn" role="alert">
               <span>{t("camera.backendUnavailable")}</span>
@@ -623,7 +580,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             </div>
           )}
 
-          {/* Acción principal + terminar */}
           <div className="cv2-actions">
             <button
               className={`cv2-btn cv2-btn-${accion.variant}`}
@@ -648,7 +604,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             </button>
           </div>
 
-          {/* Nivel de riesgo (siempre visible, también en móvil) */}
           <section className="cv2-risk" aria-live="polite">
             <div className="cv2-risk-head">
               <span className="cv2-risk-title">{t("camera.riskIndicator.title")}</span>
@@ -676,7 +631,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             )}
           </section>
 
-          {/* Ajustes de detección: plegados para no estorbar */}
           <details className="cv2-details">
             <summary>{tr(t, "camera.ui.settings", "Ajustes de detección")}</summary>
             <div className="cv2-details-body">

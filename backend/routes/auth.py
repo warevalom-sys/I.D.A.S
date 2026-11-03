@@ -53,10 +53,10 @@ def _respuesta_usuario(usuario, mensaje: str):
 
 @router.post("/registro")
 async def registrar_usuario(datos: RegistroRequest):
-    if obtener_usuario_por_email(datos.email):
+    if await obtener_usuario_por_email(datos.email):
         raise HTTPException(status_code=400, detail="Ya existe un usuario con ese email")
 
-    usuario = crear_usuario(
+    usuario = await crear_usuario(
         nombre=datos.nombre,
         email=datos.email,
         password_hash=hash_password(datos.password),
@@ -66,7 +66,7 @@ async def registrar_usuario(datos: RegistroRequest):
     )
 
     if datos.tiene_auto and datos.vehiculo:
-        crear_vehiculo(
+        await crear_vehiculo(
             usuario_id=usuario.id,
             tipo=datos.vehiculo.tipo,
             marca=datos.vehiculo.marca,
@@ -81,7 +81,7 @@ async def registrar_usuario(datos: RegistroRequest):
 
 @router.post("/login")
 async def login(datos: LoginRequest):
-    usuario = obtener_usuario_por_email(datos.email)
+    usuario = await obtener_usuario_por_email(datos.email)
 
     if not usuario or usuario.proveedor_auth != "local" or not usuario.password_hash:
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")

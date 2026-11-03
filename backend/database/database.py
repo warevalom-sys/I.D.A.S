@@ -1,17 +1,23 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
 
-DATABASE_URL = "sqlite:///./idss.db"
+# Tu cadena de conexión directa a MongoDB Atlas
+MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://sdvg2005_db_user:Sergio2005.*@cluster0.8soead2.mongodb.net/")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
+client = AsyncIOMotorClient(MONGO_URL)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+# Base de datos en la nube
+database = client.idss_db
 
-Base = declarative_base()
+# Colecciones para el sistema de análisis (YOLO / IDSS)
+sesiones_collection = database.get_collection("sesiones_analisis")
+frames_collection = database.get_collection("frames_analizados")
+detecciones_collection = database.get_collection("registros_deteccion")
+objetos_collection = database.get_collection("objetos_detectados")
+
+# Colecciones para el nuevo sistema de Autenticación y Registro de usuarios
+users_collection = database.get_collection("users")
+vehicles_collection = database.get_collection("vehicles")
+
+def get_database():
+    return database
