@@ -11,6 +11,7 @@ from services.detector import (
     reiniciar_metricas,
     registrar_latencia_bd,
 )
+from services.alerta import evaluar, limpiar_sesion
 
 from database.crud import (
     crear_sesion,
@@ -69,9 +70,9 @@ async def finalizar_sesion_endpoint(sesion_id: int):
     if not sesion:
         raise HTTPException(status_code=404, detail="La sesión no existe")
 
-    # Libera el historial de tracking en memoria de esta sesión —
-    # ya no se van a procesar más frames de ella.
+    # Libera los historiales en memoria de esta sesión.
     limpiar_tracking_sesion(sesion_id)
+    limpiar_sesion(sesion_id)
 
     return {
         "mensaje": "Sesión finalizada correctamente",
@@ -94,6 +95,7 @@ async def actualizar_video_endpoint(sesion_id: int, datos: VideoUpdateRequest):
         "video_local_uri": sesion.video_local_uri,
     }
 
+
 @router.post("/analizar-frame/{sesion_id}")
 async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
     inicio_ruta = time.perf_counter()
@@ -115,6 +117,9 @@ async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
         t = time.perf_counter()
         guardar_frame(sesion_id, resultado)
         bd_ms += (time.perf_counter() - t) * 1000
+
+        # Se agrega a la respuesta, sin persistir esta señal en guardar_frame().
+        resultado["alerta_sonora"] = evaluar(sesion_id, resultado)
 
         ruta_ms = (time.perf_counter() - inicio_ruta) * 1000
         registrar_latencia_bd(bd_ms, ruta_ms)

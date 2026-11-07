@@ -18,6 +18,9 @@ dist/
 # Base de datos SQLite
 backend/idss.db
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Modelos de YOLO (se descargan solos con ultralytics)
 *.pt
