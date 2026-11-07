@@ -6,4 +6,14 @@ export default defineConfig({
   server: {
     open: true,
   },
+
+  server: {
+  host: true,
+  allowedHosts: ['.devtunnels.ms'],
+  proxy: {
+    '/api':    { target: 'http://127.0.0.1:8000', changeOrigin: true },
+    '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+  },
+},
+
 });

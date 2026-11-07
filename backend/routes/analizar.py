@@ -2,7 +2,12 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 from typing import Optional
 from pydantic import BaseModel
 
-from services.detector import procesar_frame, limpiar_tracking_sesion
+from services.detector import (
+    procesar_frame,
+    limpiar_tracking_sesion,
+    obtener_metricas,
+    reiniciar_metricas,
+)
 
 from database.crud import (
     crear_sesion,
@@ -107,16 +112,14 @@ async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error procesando frame: {str(e)}")
 
 
-@router.post("/analizar-frame/{sesion_id}")
-async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
-    if not obtener_sesion_por_id(sesion_id):
-        raise HTTPException(status_code=404, detail="La sesión no existe")
-    if not frame.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
-    try:
-        contenido = await frame.read()
-        resultado = procesar_frame(contenido, sesion_id)
-        guardar_frame(sesion_id, resultado)
-        return resultado
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error procesando frame: {str(e)}")
+@router.get("/metricas")
+async def metricas_latencia():
+    """Latencia de procesamiento de los últimos frames (para validar KPIs)."""
+    return obtener_metricas()
+
+
+@router.post("/metricas/reiniciar")
+async def reiniciar_metricas_endpoint():
+    """Borra las mediciones acumuladas; útil antes de cada corrida de pruebas."""
+    reiniciar_metricas()
+    return {"mensaje": "Métricas reiniciadas"}

@@ -1,0 +1,211 @@
+"""
+Prueba del backend con un video pregrabado (Sprints 4 y 7 + validación de KPIs).
+
+Lee un video, extrae un frame cada N milisegundos (igual que el frontend),
+lo envía a /api/analizar-frame y guarda un CSV con el resultado de cada
+frame. Al final imprime un resumen con la latencia y la distribución de
+niveles de riesgo.
+
+Uso básico:
+    python pruebas/probar_video.py videos/ciclovia_dia.mp4
+
+Con etiquetas manuales (para medir la precisión del nivel de riesgo):
+    python pruebas/probar_video.py videos/ciclovia_dia.mp4 --etiquetas videos/ciclovia_dia.csv
+
+Formato del CSV de etiquetas (el nivel aplica desde ese segundo hasta la
+siguiente fila):
+    segundo,riesgo_esperado
+    0,ninguno
+    12.5,medio
+    14,alto
+    17,ninguno
+
+Solo usa la librería estándar y OpenCV (ya instalado para el backend).
+El servidor debe estar corriendo:  uvicorn app:app --port 8000
+"""
+import argparse
+import csv
+import json
+import statistics
+import sys
+import time
+import urllib.request
+import uuid
+from collections import Counter
+from pathlib import Path
+
+import cv2
+
+NIVELES = ["ninguno", "bajo", "medio", "alto"]
+ALERTA = {"medio", "alto"}
+
+
+# ───────────────────────── HTTP (sin dependencias) ─────────────────────────
+def _json(url, metodo="GET", cuerpo=None):
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    req = urllib.request.Request(
+        url, data=datos, method=metodo,
+        headers={"Content-Type": "application/json"} if datos else {},
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read())
+
+
+def _enviar_frame(url, jpg: bytes):
+    frontera = uuid.uuid4().hex
+    cuerpo = (
+        f"--{frontera}\r\n"
+        'Content-Disposition: form-data; name="frame"; filename="frame.jpg"\r\n'
+        "Content-Type: image/jpeg\r\n\r\n"
+    ).encode() + jpg + f"\r\n--{frontera}--\r\n".encode()
+    req = urllib.request.Request(
+        url, data=cuerpo, method="POST",
+        headers={"Content-Type": f"multipart/form-data; boundary={frontera}"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read())
+
+
+# ───────────────────────────── Etiquetas ─────────────────────────────
+def cargar_etiquetas(ruta):
+    filas = []
+    with open(ruta, newline="", encoding="utf-8") as f:
+        for fila in csv.DictReader(f):
+            nivel = fila["riesgo_esperado"].strip().lower()
+            if nivel not in NIVELES:
+                sys.exit(f"Nivel inválido en etiquetas: '{nivel}' (usa {NIVELES})")
+            filas.append((float(fila["segundo"]), nivel))
+    filas.sort()
+    if not filas:
+        sys.exit("El archivo de etiquetas está vacío")
+    return filas
+
+
+def nivel_esperado(etiquetas, segundo):
+    esperado = etiquetas[0][1]
+    for inicio, nivel in etiquetas:
+        if segundo >= inicio:
+            esperado = nivel
+        else:
+            break
+    return esperado
+
+
+def resumen_precision(filas):
+    n = len(filas)
+    aciertos = sum(1 for f in filas if f["riesgo_esperado"] == f["nivel_riesgo"])
+    print(f"\nPrecisión del nivel de riesgo: {aciertos}/{n} = {100*aciertos/n:.1f}%")
+
+    print("\nMatriz de confusión (filas = esperado, columnas = detectado):")
+    print(" " * 10 + "".join(f"{c:>9}" for c in NIVELES))
+    for esp in NIVELES:
+        cuenta = Counter(f["nivel_riesgo"] for f in filas if f["riesgo_esperado"] == esp)
+        print(f"{esp:>10}" + "".join(f"{cuenta.get(c, 0):>9}" for c in NIVELES))
+
+    # Métrica de seguridad: ¿se avisó cuando había que avisar?
+    tp = sum(1 for f in filas if f["riesgo_esperado"] in ALERTA and f["nivel_riesgo"] in ALERTA)
+    fn = sum(1 for f in filas if f["riesgo_esperado"] in ALERTA and f["nivel_riesgo"] not in ALERTA)
+    fp = sum(1 for f in filas if f["riesgo_esperado"] not in ALERTA and f["nivel_riesgo"] in ALERTA)
+    prec = tp / (tp + fp) if tp + fp else float("nan")
+    rec = tp / (tp + fn) if tp + fn else float("nan")
+    print("\nAlertas (riesgo medio o alto):")
+    print(f"  Aciertos={tp}  Alertas perdidas={fn}  Falsas alarmas={fp}")
+    print(f"  Precisión={prec:.2f}  Sensibilidad={rec:.2f}")
+
+
+# ─────────────────────────────── Principal ───────────────────────────────
+def main():
+    ap = argparse.ArgumentParser(description="Prueba el backend IDSS con un video.")
+    ap.add_argument("video")
+    ap.add_argument("--url", default="http://localhost:8000", help="URL base del backend")
+    ap.add_argument("--intervalo-ms", type=int, default=750, help="Un frame cada N ms (como el frontend)")
+    ap.add_argument("--etiquetas", help="CSV con riesgo esperado por segundo")
+    ap.add_argument("--salida", help="CSV de resultados (por defecto <video>_resultados.csv)")
+    ap.add_argument("--max-frames", type=int, default=0, help="Limitar frames (0 = todo el video)")
+    args = ap.parse_args()
+
+    cap = cv2.VideoCapture(args.video)
+    if not cap.isOpened():
+        sys.exit(f"No se pudo abrir el video: {args.video}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duracion = total / fps if total else 0
+    etiquetas = cargar_etiquetas(args.etiquetas) if args.etiquetas else None
+
+    try:
+        _json(f"{args.url}/health")
+    except Exception as e:
+        sys.exit(f"No se pudo conectar al backend en {args.url}: {e}")
+
+    print(f"Video: {args.video}  ({duracion:.1f} s, {fps:.1f} fps)")
+    _json(f"{args.url}/api/metricas/reiniciar", "POST")
+    sesion_id = _json(f"{args.url}/api/sesiones", "POST", {})["sesion_id"]
+    print(f"Sesión {sesion_id} creada. Analizando un frame cada {args.intervalo_ms} ms...\n")
+
+    filas, errores, t = [], 0, 0.0
+    while True:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, frame = cap.read()
+        if not ok:
+            break
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        inicio = time.perf_counter()
+        try:
+            r = _enviar_frame(f"{args.url}/api/analizar-frame/{sesion_id}", buf.tobytes())
+        except Exception as e:
+            errores += 1
+            print(f"  t={t:6.2f}s  ERROR: {e}")
+            t += args.intervalo_ms / 1000
+            continue
+        ida_vuelta_ms = (time.perf_counter() - inicio) * 1000
+
+        fila = {
+            "segundo": round(t, 2),
+            "nivel_riesgo": r["nivel_riesgo"],
+            "total_objetos": r["total_objetos"],
+            "max_tasa_expansion": max((o["tasa_expansion"] for o in r["objetos_detectados"]), default=0.0),
+            "ms_servidor": r.get("tiempo_procesamiento_ms", ""),
+            "ms_ida_y_vuelta": round(ida_vuelta_ms, 1),
+        }
+        if etiquetas:
+            fila["riesgo_esperado"] = nivel_esperado(etiquetas, t)
+        filas.append(fila)
+        print(f"  t={t:6.2f}s  riesgo={r['nivel_riesgo']:<8} objetos={r['total_objetos']:<2} "
+              f"servidor={fila['ms_servidor']} ms")
+
+        t += args.intervalo_ms / 1000
+        if args.max_frames and len(filas) >= args.max_frames:
+            break
+
+    cap.release()
+    _json(f"{args.url}/api/sesiones/{sesion_id}/finalizar", "PATCH")
+
+    if not filas:
+        sys.exit("No se analizó ningún frame.")
+
+    salida = args.salida or str(Path(args.video).with_suffix("")) + "_resultados.csv"
+    with open(salida, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(filas[0].keys()))
+        w.writeheader()
+        w.writerows(filas)
+
+    # ── Resumen ──
+    ida = [f["ms_ida_y_vuelta"] for f in filas]
+    ida_ord = sorted(ida)
+    p95 = ida_ord[int(round(0.95 * (len(ida_ord) - 1)))]
+    print("\n" + "=" * 60)
+    print(f"Frames analizados: {len(filas)}   Errores: {errores}")
+    print(f"Latencia ida y vuelta (ms): promedio={statistics.mean(ida):.0f}  "
+          f"mediana={statistics.median(ida):.0f}  p95={p95:.0f}  máx={max(ida):.0f}")
+    bajo = 100 * sum(1 for x in ida if x <= 500) / len(ida)
+    print(f"Frames con respuesta <= 500 ms: {bajo:.1f}%")
+    print("Distribución de riesgo:", dict(Counter(f["nivel_riesgo"] for f in filas)))
+    print("Métricas del servidor:", json.dumps(_json(f"{args.url}/api/metricas"), ensure_ascii=False))
+
+    if etiquetas:
+        resumen_precision(filas)
+    print(f"\nResultados guardados en: {salida}")
+
+
+if __name__ == "__main__":
+    main()
