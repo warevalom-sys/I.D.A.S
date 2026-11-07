@@ -1,8 +1,34 @@
+@'
+# Entornos virtuales
 venv/
+.venv/
+.venv-test/
+
+# Python
 __pycache__/
 *.pyc
+
+# Node
 node_modules/
+dist/
+
+# Secretos
 .env
-# SQLite DB
+
+# Base de datos SQLite
 backend/idss.db
 *.db
+
+# Modelos de YOLO (se descargan solos con ultralytics)
+*.pt
+
+# Resultados de pruebas (los KPIs se citan desde el CSV, pero no se versionan)
+backend/salida_*.txt
+backend/*.csv
+backend/pruebas/*.csv
+episodios_*.csv
+
+# Sistema
+.DS_Store
+Thumbs.db
+'@ | Set-Content -Path .gitignore -Encoding utf8

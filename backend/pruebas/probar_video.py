@@ -20,6 +20,14 @@ siguiente fila):
     14,alto
     17,ninguno
 
+Notas:
+  - La URL por defecto usa 127.0.0.1 y no "localhost": en Windows, "localhost"
+    se resuelve primero a IPv6 (::1) y, si el servidor solo escucha en IPv4,
+    cada petición pierde ~2 s esperando el reintento. Eso inflaba la latencia.
+  - Los primeros frames (--descartar-primeros, 1 por defecto) incluyen el
+    arranque del modelo YOLO; se guardan en el CSV (columna "calentamiento")
+    pero no cuentan en las estadísticas de latencia.
+
 Solo usa la librería estándar y OpenCV (ya instalado para el backend).
 El servidor debe estar corriendo:  uvicorn app:app --port 8000
 """
@@ -113,16 +121,37 @@ def resumen_precision(filas):
     print(f"  Precisión={prec:.2f}  Sensibilidad={rec:.2f}")
 
 
+# ───────────────────────────── Estadísticas ─────────────────────────────
+def _percentil(valores, p):
+    orden = sorted(valores)
+    return orden[int(round(p * (len(orden) - 1)))]
+
+
+def _linea_latencia(nombre, valores):
+    if not valores:
+        return f"{nombre}: sin datos"
+    return (f"{nombre} (ms): promedio={statistics.mean(valores):.0f}  "
+            f"mediana={statistics.median(valores):.0f}  "
+            f"p95={_percentil(valores, 0.95):.0f}  máx={max(valores):.0f}")
+
+
 # ─────────────────────────────── Principal ───────────────────────────────
 def main():
     ap = argparse.ArgumentParser(description="Prueba el backend IDSS con un video.")
     ap.add_argument("video")
-    ap.add_argument("--url", default="http://localhost:8000", help="URL base del backend")
+    ap.add_argument("--url", default="http://127.0.0.1:8000",
+                    help="URL base del backend (usa 127.0.0.1, no localhost)")
     ap.add_argument("--intervalo-ms", type=int, default=750, help="Un frame cada N ms (como el frontend)")
     ap.add_argument("--etiquetas", help="CSV con riesgo esperado por segundo")
     ap.add_argument("--salida", help="CSV de resultados (por defecto <video>_resultados.csv)")
     ap.add_argument("--max-frames", type=int, default=0, help="Limitar frames (0 = todo el video)")
+    ap.add_argument("--descartar-primeros", type=int, default=1,
+                    help="Frames de calentamiento que no cuentan en la latencia (por defecto 1)")
     args = ap.parse_args()
+
+    if "localhost" in args.url:
+        print("AVISO: 'localhost' puede añadir ~2 s por petición en Windows (IPv6). "
+              "Usa http://127.0.0.1:8000 para medir la latencia real.\n")
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -163,15 +192,19 @@ def main():
             "segundo": round(t, 2),
             "nivel_riesgo": r["nivel_riesgo"],
             "total_objetos": r["total_objetos"],
-            "max_tasa_expansion": max((o["tasa_expansion"] for o in r["objetos_detectados"]), default=0.0),
+            "max_tasa_expansion": max(
+                (o.get("tasa_expansion", 0.0) for o in r["objetos_detectados"]), default=0.0
+            ),
             "ms_servidor": r.get("tiempo_procesamiento_ms", ""),
             "ms_ida_y_vuelta": round(ida_vuelta_ms, 1),
+            "calentamiento": 1 if len(filas) < args.descartar_primeros else 0,
         }
         if etiquetas:
             fila["riesgo_esperado"] = nivel_esperado(etiquetas, t)
         filas.append(fila)
+        marca = "  (calentamiento)" if fila["calentamiento"] else ""
         print(f"  t={t:6.2f}s  riesgo={r['nivel_riesgo']:<8} objetos={r['total_objetos']:<2} "
-              f"servidor={fila['ms_servidor']} ms")
+              f"servidor={fila['ms_servidor']} ms  ida y vuelta={fila['ms_ida_y_vuelta']} ms{marca}")
 
         t += args.intervalo_ms / 1000
         if args.max_frames and len(filas) >= args.max_frames:
@@ -190,13 +223,22 @@ def main():
         w.writerows(filas)
 
     # ── Resumen ──
-    ida = [f["ms_ida_y_vuelta"] for f in filas]
-    ida_ord = sorted(ida)
-    p95 = ida_ord[int(round(0.95 * (len(ida_ord) - 1)))]
+    validas = [f for f in filas if not f["calentamiento"]]
+    if not validas:
+        print("\nAVISO: todos los frames son de calentamiento; las estadísticas usan todos.")
+        validas = filas
+    ida = [f["ms_ida_y_vuelta"] for f in validas]
+    servidor = [f["ms_servidor"] for f in validas if isinstance(f["ms_servidor"], (int, float))]
+
     print("\n" + "=" * 60)
-    print(f"Frames analizados: {len(filas)}   Errores: {errores}")
-    print(f"Latencia ida y vuelta (ms): promedio={statistics.mean(ida):.0f}  "
-          f"mediana={statistics.median(ida):.0f}  p95={p95:.0f}  máx={max(ida):.0f}")
+    print(f"Frames analizados: {len(filas)}   Errores: {errores}   "
+          f"Frames en estadísticas: {len(validas)} (sin {len(filas) - len(validas)} de calentamiento)")
+    primeros = [f for f in filas if f["calentamiento"]]
+    if primeros:
+        print("Calentamiento (ida y vuelta, ms): " +
+              ", ".join(f"{f['ms_ida_y_vuelta']:.0f}" for f in primeros))
+    print(_linea_latencia("Latencia ida y vuelta", ida))
+    print(_linea_latencia("Tiempo del servidor   ", servidor))
     bajo = 100 * sum(1 for x in ida if x <= 500) / len(ida)
     print(f"Frames con respuesta <= 500 ms: {bajo:.1f}%")
     print("Distribución de riesgo:", dict(Counter(f["nivel_riesgo"] for f in filas)))
