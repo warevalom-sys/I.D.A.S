@@ -63,6 +63,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   const sonandoRef   = useRef(false);
   const sesionIdRef  = useRef(null);
   const sesionFinalizadaRef = useRef(false);
+  const creandoSesionRef = useRef(null);   // evita crear dos sesiones con doble clic
+  const enVueloRef = useRef(false);        // hay un frame en camino al backend
+  const erroresSeguidosRef = useRef(0);
+  const analisisActivoRef = useRef(false); // descarta respuestas que llegan tras pausar
+  const alertaIntervaloRef = useRef(null);
+  const videoUrlRef = useRef(null);
 
   // Grabación local del video (MediaRecorder) — el video nunca sube al
   // backend, se guarda 100% en el dispositivo vía IndexedDB.
@@ -82,19 +88,24 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     verificarConexion().then(setBackendConectado);
   }, []);
 
-  useEffect(() => {
-    const initSesion = async () => {
-      try {
-        const id = await crearSesion(user?.usuarioId);
-        setSesionId(id);
-        sesionIdRef.current = id;
-        sesionFinalizadaRef.current = false;
-        console.log("Sesion creada:", id);
-      } catch (err) {
-        console.error("Error creando sesión:", err);
-      }
-    };
-    initSesion();
+  /**
+   * Devuelve la sesión activa; si no hay (o ya se finalizó), crea una nueva.
+   * Se llama al iniciar la cámara / el análisis, no al abrir la pantalla:
+   * así no quedan sesiones "activas" vacías ni duplicadas.
+   */
+  const asegurarSesion = useCallback(async () => {
+    if (sesionIdRef.current && !sesionFinalizadaRef.current) return sesionIdRef.current;
+    if (!creandoSesionRef.current) {
+      creandoSesionRef.current = crearSesion(user?.usuarioId)
+        .then((id) => {
+          sesionIdRef.current = id;
+          sesionFinalizadaRef.current = false;
+          setSesionId(id);
+          return id;
+        })
+        .finally(() => { creandoSesionRef.current = null; });
+    }
+    return creandoSesionRef.current;
   }, [user?.usuarioId]);
 
   const finalizarSesionActual = useCallback(async () => {
@@ -131,6 +142,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     }
 
     chunksVideoRef.current = [];
+    const sesionGrabacion = sesionIdRef.current; // la sesión puede cambiar antes de que termine de guardarse
     const mimeType = elegirMimeType();
 
     try {
@@ -141,7 +153,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
       };
 
       recorder.onstop = async () => {
-        const sesion = sesionIdRef.current;
+        const sesion = sesionGrabacion || sesionIdRef.current;
         const chunks = chunksVideoRef.current;
         chunksVideoRef.current = [];
 
@@ -189,25 +201,40 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
       if (videoRef.current?.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       }
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
       detenerAlerta();
+      audioCtxRef.current?.close?.();
+      audioCtxRef.current = null;
       finalizarSesionActual();
     };
   }, []);
 
   // ── Alertas sonoras ───────────────────────────────────
+  // El navegador solo deja sonar el audio si el AudioContext se crea o se
+  // reanuda dentro de un toque del usuario (iOS Safari y Chrome móvil lo
+  // exigen). Por eso se "desbloquea" al pulsar Iniciar cámara / Analizar y
+  // se reutiliza el mismo contexto durante toda la sesión.
+  const desbloquearAudio = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtxRef.current = new Ctx();
+      }
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+    } catch (err) {
+      console.warn("No se pudo activar el audio:", err);
+    }
+  }, []);
+
   const reproducirAlerta = useCallback(() => {
     if (sonandoRef.current) return;
     sonandoRef.current = true;
+    desbloquearAudio();
 
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    audioCtxRef.current = ctx;
-
-    const intervalo = setInterval(() => {
-      if (!sonandoRef.current) {
-        clearInterval(intervalo);
-        return;
-      }
+    const pitar = () => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state === "closed") return;
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -218,15 +245,19 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.3);
-    }, 600);
-  }, []);
+      // Vibración (solo Android; iOS no la soporta)
+      navigator.vibrate?.([200, 100, 200]);
+    };
+
+    pitar();
+    alertaIntervaloRef.current = setInterval(pitar, 600);
+  }, [desbloquearAudio]);
 
   const detenerAlerta = useCallback(() => {
     sonandoRef.current = false;
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
+    clearInterval(alertaIntervaloRef.current);
+    alertaIntervaloRef.current = null;
+    navigator.vibrate?.(0);
   }, []);
 
   useEffect(() => {
@@ -257,47 +288,93 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     const video  = videoRef.current;
     if (!canvas || !video) return;
 
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 480;
+    // Las coordenadas del backend están en el tamaño real del video, pero el
+    // video se muestra con object-fit: cover (recortado). Se convierten a la
+    // zona visible para que los recuadros queden sobre los objetos.
+    const vw = video.videoWidth  || 640;
+    const vh = video.videoHeight || 480;
+    const cw = canvas.clientWidth  || vw;
+    const ch = canvas.clientHeight || vh;
+    canvas.width  = cw;
+    canvas.height = ch;
+
+    const escala = Math.max(cw / vw, ch / vh);
+    const offX = (cw - vw * escala) / 2;
+    const offY = (ch - vh * escala) / 2;
+
     const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, cw, ch);
 
     objetos.forEach((obj) => {
       const { x, y, ancho, alto } = obj.bbox;
+      const bx = x * escala + offX;
+      const by = y * escala + offY;
+      const bw = ancho * escala;
+      const bh = alto * escala;
       const color = obj.clase === "persona" ? "#378add" : "#ff9f43";
 
       ctx.strokeStyle = color;
       ctx.lineWidth   = 2;
-      ctx.strokeRect(x, y, ancho, alto);
+      ctx.strokeRect(bx, by, bw, bh);
 
+      const yEtiqueta = by < 20 ? by : by - 20; // no se sale por arriba
       ctx.fillStyle = color;
-      ctx.fillRect(x, y - 20, ancho, 20);
+      ctx.fillRect(bx, yEtiqueta, bw, 20);
       ctx.fillStyle = "#0c0d0f";
       ctx.font      = "600 11px Barlow, sans-serif";
-      ctx.fillText(`${obj.clase} ${Math.round(obj.confianza * 100)}%`, x + 4, y - 5);
+      ctx.fillText(`${obj.clase} ${Math.round(obj.confianza * 100)}%`, bx + 4, yEtiqueta + 15);
     });
   }, [feedVisualCompleto]);
 
   const detenerAnalisis = useCallback(() => {
+    analisisActivoRef.current = false;
     clearInterval(intervaloRef.current);
     setAnalizando(false);
-    if (videoRef.current) videoRef.current.pause();
+    // Solo se pausa un video cargado. La cámara en vivo sigue corriendo:
+    // si se pausara, al reanudar se analizaría un frame congelado.
+    if (cfg.usaVideo && videoRef.current) videoRef.current.pause();
     detenerAlerta();
-    const ctx = canvasRef.current?.getContext("2d");
-    ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-  }, [detenerAlerta]);
+    const canvas = canvasRef.current;
+    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  }, [detenerAlerta, cfg.usaVideo]);
 
-  const iniciarAnalisis = useCallback(() => {
+  const iniciarAnalisis = useCallback(async () => {
     if (!backendConectado) return;
+    desbloquearAudio(); // dentro del toque del usuario, antes de cualquier await
+
+    try {
+      await asegurarSesion();
+    } catch (err) {
+      console.error("Error creando sesión:", err);
+      setError(err.message);
+      return;
+    }
+
+    setError(null);
+    if (videoRef.current?.paused) videoRef.current.play().catch(() => {});
+
+    clearInterval(intervaloRef.current);
+    analisisActivoRef.current = true;
+    enVueloRef.current = false;
+    erroresSeguidosRef.current = 0;
     setAnalizando(true);
     let ultimoTiempo = Date.now();
 
     intervaloRef.current = setInterval(async () => {
+      // Un frame a la vez: si el anterior sigue en camino (red lenta o
+      // servidor ocupado) se salta este turno en vez de acumular peticiones.
+      if (enVueloRef.current) return;
       if (!videoRef.current || videoRef.current.readyState < 2) return;
       if (!sesionIdRef.current) return;
+
+      enVueloRef.current = true;
       try {
         const blob      = await capturarFrameDeVideo(videoRef.current);
         const resultado = await analizarFrame(blob, sesionIdRef.current);
+        if (!analisisActivoRef.current) return; // se pausó mientras esperaba
+
+        erroresSeguidosRef.current = 0;
+        setBackendConectado(true);
         setResultadoActual(resultado);
 
         const ahora = Date.now();
@@ -307,12 +384,18 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         dibujarDetecciones(resultado.objetos_detectados);
       } catch (err) {
         console.error("Error enviando frame:", err);
+        erroresSeguidosRef.current += 1;
+        // Tras 3 fallos seguidos se avisa que el sistema no está protegiendo
+        if (erroresSeguidosRef.current >= 3) setBackendConectado(false);
+      } finally {
+        enVueloRef.current = false;
       }
     }, INTERVALO_MS);
-  }, [backendConectado, dibujarDetecciones]);
+  }, [backendConectado, dibujarDetecciones, asegurarSesion, desbloquearAudio]);
 
   // ── Cámara ────────────────────────────────────────────
   const iniciarCamara = async () => {
+    desbloquearAudio(); // dentro del toque del usuario
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -323,6 +406,11 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         setCamaraActiva(true);
+        try {
+          await asegurarSesion(); // para asociar la grabación a su sesión
+        } catch (err) {
+          console.error("Error creando sesión:", err); // se reintenta al iniciar el análisis
+        }
         iniciarGrabacion(stream);
       }
     } catch (err) {
@@ -349,14 +437,17 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     if (!archivo) return;
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     detenerAnalisis();
+    finalizarSesionActual(); // el video anterior cierra su sesión
     setResultadoActual(null);
     setFps("—");
     const url = URL.createObjectURL(archivo);
+    videoUrlRef.current = url;
     setVideoUrl(url);
   };
 
   const reproducirYAnalizar = () => {
     if (!videoRef.current || !videoUrl) return;
+    desbloquearAudio();
     videoRef.current.play();
     iniciarAnalisis();
   };
@@ -369,14 +460,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     finalizarSesionActual();
   };
 
-  const [distMin, setDistMin] = useState(3);
-
   // ── UI ────────────────────────────────────────────────
   const riesgoKey = resultadoActual?.nivel_riesgo || "ninguno";
   const riesgoMeta = RIESGO_CONFIG[riesgoKey];
   const riesgo    = { ...riesgoMeta, label: t(riesgoMeta.labelKey) };
 
-  const AlertaRiesgoAlto = () =>
+  const alertaRiesgoAlto = () =>
     feedVisualCompleto && analizando && resultadoActual?.nivel_riesgo === "alto" ? (
       <div style={{
         position: "absolute", inset: 0,
@@ -399,13 +488,13 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
       </div>
     ) : null;
 
-  const BadgeBackend = () => backendConectado
+  const badgeBackend = () => backendConectado
     ? <div className="feed-badge" style={{ color: "#3ecf6e" }}>{t("camera.backendConnected")}</div>
     : <div className="feed-badge" style={{ color: "#ff4d4f" }}>{t("camera.backendUnavailable")}</div>;
 
   // Píldora de riesgo flotante — solo en modos con feed visual completo.
   // En bicicleta, la alerta sonora es la única señal (ver reproducirAlerta).
-  const RiesgoFlotante = () => (
+  const riesgoFlotante = () => (
     <div className="cv-feed-risk-badge">
       <div className="cv-feed-risk-badge-inner" style={{ color: riesgo.color, background: `${riesgo.color}1a` }}>
         <span className="cv-feed-risk-dot" />
@@ -490,7 +579,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                   <span className="cv2-ph-icon"><VehicleIcon tipo={tipoIcono} size={40} /></span>
                   <p className="cv2-ph-title">{placeholderTitulo}</p>
                   <p className="cv2-ph-desc">{cfg.desc}</p>
-                  <BadgeBackend />
+                  {badgeBackend()}
                 </div>
               )}
 
@@ -505,7 +594,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                   objectFit: "cover",
                   display: videoUrl ? "block" : "none",
                 }}
-                onEnded={detenerAnalisis}
+                onEnded={() => { detenerAnalisis(); finalizarSesionActual(); }}
               />
 
               <canvas
@@ -517,8 +606,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                   display: videoUrl ? "block" : "none",
                 }}
               />
-              <AlertaRiesgoAlto />
-              {videoUrl && <RiesgoFlotante />}
+              {alertaRiesgoAlto()}
+              {videoUrl && riesgoFlotante()}
             </div>
           )}
 
@@ -530,7 +619,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                   <span className="cv2-ph-icon"><VehicleIcon tipo={tipoIcono} size={40} /></span>
                   <p className="cv2-ph-title">{placeholderTitulo}</p>
                   <p className="cv2-ph-desc">{cfg.desc}</p>
-                  <BadgeBackend />
+                  {badgeBackend()}
                 </div>
               )}
 
@@ -559,8 +648,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
                 }}
               />
 
-              <AlertaRiesgoAlto />
-              {feedVisualCompleto && camaraActiva && <RiesgoFlotante />}
+              {alertaRiesgoAlto()}
+              {feedVisualCompleto && camaraActiva && riesgoFlotante()}
 
               {/* En bicicleta, mientras está activa, un indicador mínimo
                   y calmado — sin parpadeo, sin bounding boxes. */}
@@ -623,6 +712,10 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
             </div>
           )}
 
+          {!esBici && error && (
+            <div className="cv2-warn" role="alert"><span>{error}</span></div>
+          )}
+
           {/* Acción principal + terminar */}
           <div className="cv2-actions">
             <button
@@ -675,36 +768,6 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
               </ul>
             )}
           </section>
-
-          {/* Ajustes de detección: plegados para no estorbar */}
-          <details className="cv2-details">
-            <summary>{tr(t, "camera.ui.settings", "Ajustes de detección")}</summary>
-            <div className="cv2-details-body">
-              <label className="ctrl-toggle">
-                <input type="checkbox" defaultChecked />
-                <span>{t("camera.detection.vehicles")}</span>
-              </label>
-              <label className="ctrl-toggle">
-                <input type="checkbox" defaultChecked />
-                <span>{t("camera.detection.pedestrians")}</span>
-              </label>
-              <label className="ctrl-toggle">
-                <input type="checkbox" />
-                <span>{t("camera.detection.staticObstacles")}</span>
-              </label>
-              <div className="range-row">
-                <span>{t("camera.threshold.minDist")}</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={distMin}
-                  onChange={(e) => setDistMin(Number(e.target.value))}
-                />
-                <span>{distMin}m</span>
-              </div>
-            </div>
-          </details>
 
           <p className="cv2-safety">
             {tr(t, "camera.ui.safety", "Configura todo antes de salir. No uses el celular mientras te desplazas.")}

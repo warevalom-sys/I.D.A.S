@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from typing import Optional
 from pydantic import BaseModel
@@ -7,6 +9,7 @@ from services.detector import (
     limpiar_tracking_sesion,
     obtener_metricas,
     reiniciar_metricas,
+    registrar_latencia_bd,
 )
 
 from database.crud import (
@@ -93,7 +96,12 @@ async def actualizar_video_endpoint(sesion_id: int, datos: VideoUpdateRequest):
 
 @router.post("/analizar-frame/{sesion_id}")
 async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
-    if not obtener_sesion_por_id(sesion_id):
+    inicio_ruta = time.perf_counter()
+
+    t = time.perf_counter()
+    sesion_existe = obtener_sesion_por_id(sesion_id)
+    bd_ms = (time.perf_counter() - t) * 1000
+    if not sesion_existe:
         raise HTTPException(status_code=404, detail="La sesión no existe")
     if not frame.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
@@ -104,7 +112,13 @@ async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
         if resultado["estado"] == "error":
             raise HTTPException(status_code=422, detail=resultado["mensaje"])
 
+        t = time.perf_counter()
         guardar_frame(sesion_id, resultado)
+        bd_ms += (time.perf_counter() - t) * 1000
+
+        ruta_ms = (time.perf_counter() - inicio_ruta) * 1000
+        registrar_latencia_bd(bd_ms, ruta_ms)
+        resultado["tiempo_bd_ms"] = round(bd_ms, 1)
         return resultado
     except HTTPException:
         raise

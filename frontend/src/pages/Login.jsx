@@ -383,8 +383,14 @@ export default function Login({ navigate, onLoginSuccess }) {
       const datos = await apiLogin(lUser.trim(), lPass);
       guardarSesionUsuario(datos);
       navigate(ROUTES.DASHBOARD);
-    } catch {
-      setError("Usuario/email o contraseña incorrectos. Revisa los datos e intenta de nuevo.");
+    } catch (err) {
+      const msg = err?.message || "";
+      const sinConexion = /conectar|tardó|Failed to fetch|NetworkError/i.test(msg);
+      setError(
+        sinConexion
+          ? "No se pudo conectar con el servidor. Verifica que el backend esté activo."
+          : "Usuario/email o contraseña incorrectos. Revisa los datos e intenta de nuevo."
+      );
     } finally {
       setLoading(false);
     }

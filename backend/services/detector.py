@@ -101,6 +101,15 @@ def _obtener_contexto(sesion_id: int) -> dict:
 # Se guardan en memoria las últimas 500 mediciones; no se persisten en BD.
 UMBRAL_LATENCIA_MS = 500  # objetivo definido en la gestión de riesgos (R3)
 _latencias = deque(maxlen=500)  # tuplas (total_ms, inferencia_ms)
+# Tiempo que la ruta pasa guardando en la base de datos y tiempo total dentro
+# de la ruta (leer la imagen + inferencia + base de datos). El tiempo de
+# inferencia NO incluye la base de datos: con un disco lento, SQLite puede
+# tardar mucho más que YOLO sin que se note en "latencia_inferencia_ms".
+_latencias_bd = deque(maxlen=500)  # tuplas (bd_ms, ruta_ms)
+
+
+def registrar_latencia_bd(bd_ms: float, ruta_ms: float):
+    _latencias_bd.append((bd_ms, ruta_ms))
 
 
 def _percentil(valores_ordenados: list, p: float) -> float:
@@ -108,7 +117,7 @@ def _percentil(valores_ordenados: list, p: float) -> float:
     return valores_ordenados[indice]
 
 
-def obtener_metricas() -> dict:
+def _metricas_inferencia() -> dict:
     """Resumen de latencia de los últimos frames procesados."""
     muestras = list(_latencias)
     if not muestras:
@@ -140,8 +149,33 @@ def obtener_metricas() -> dict:
     }
 
 
+def _resumen(valores_ordenados: list) -> dict:
+    n = len(valores_ordenados)
+    return {
+        "promedio": round(sum(valores_ordenados) / n, 1),
+        "p95": round(_percentil(valores_ordenados, 0.95), 1),
+        "maximo": round(valores_ordenados[-1], 1),
+    }
+
+
+def _metricas_bd() -> dict:
+    muestras = list(_latencias_bd)
+    if not muestras:
+        return {}
+    return {
+        "latencia_bd_ms": _resumen(sorted(m[0] for m in muestras)),
+        "latencia_ruta_ms": _resumen(sorted(m[1] for m in muestras)),
+    }
+
+
+def obtener_metricas() -> dict:
+    """Latencia de inferencia + base de datos + ruta completa (últimos 500 frames)."""
+    return {**_metricas_inferencia(), **_metricas_bd()}
+
+
 def reiniciar_metricas():
     _latencias.clear()
+    _latencias_bd.clear()
 
 
 def procesar_frame(imagen_bytes: bytes, sesion_id: int) -> dict:
