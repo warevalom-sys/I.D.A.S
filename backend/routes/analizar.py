@@ -23,8 +23,17 @@ from database.crud import (
     finalizar_sesion,
     actualizar_video_sesion,
 )
+from database.mantenimiento import cerrar_sesiones_abandonadas
 
 router = APIRouter(prefix="/api", tags=["Análisis"])
+
+
+@router.on_event("startup")
+def cerrar_sesiones_de_ejecucion_anterior():
+    """Las sesiones que quedaron 'activas' pertenecen a una ejecución anterior."""
+    cerradas = cerrar_sesiones_abandonadas(al_arrancar=True)
+    if cerradas:
+        print(f"[IDSS] {cerradas} sesión(es) abierta(s) de una ejecución anterior se marcaron como finalizadas.")
 
 
 class VideoUpdateRequest(BaseModel):
@@ -38,6 +47,12 @@ class IniciarSesionRequest(BaseModel):
 
 @router.post("/sesiones")
 async def iniciar_sesion(datos: IniciarSesionRequest = IniciarSesionRequest()):
+    # Limpieza de sesiones abandonadas; nunca debe impedir crear la nueva.
+    try:
+        cerrar_sesiones_abandonadas(minutos=30)
+    except Exception as e:
+        print(f"[IDSS] No se pudieron cerrar sesiones abandonadas: {e}")
+
     sesion_id = crear_sesion(usuario_id=datos.usuario_id, vehiculo_id=datos.vehiculo_id)
     return {
         "mensaje": "Sesion creada correctamente",
@@ -101,11 +116,14 @@ async def analizar_frame(sesion_id: int, frame: UploadFile = File(...)):
     inicio_ruta = time.perf_counter()
 
     t = time.perf_counter()
-    sesion_existe = obtener_sesion_por_id(sesion_id)
+    sesion = obtener_sesion_por_id(sesion_id)
     bd_ms = (time.perf_counter() - t) * 1000
-    if not sesion_existe:
+    if not sesion:
         raise HTTPException(status_code=404, detail="La sesión no existe")
-    if not frame.content_type.startswith("image/"):
+    # Una sesión finalizada ya no acepta frames: el cliente debe abrir una nueva.
+    if sesion.estado == "finalizada":
+        raise HTTPException(status_code=409, detail="La sesión ya fue finalizada")
+    if not (frame.content_type or "").startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
     try:
         contenido = await frame.read()

@@ -46,6 +46,16 @@ const MODE_CONFIG = {
   },
 };
 
+/**
+ * El backend decide CUÁNDO suena la alerta (política en services/alerta.py y
+ * campo alerta_sonora de la respuesta). Si el servidor aún no envía el campo,
+ * se usa el comportamiento anterior: sonar cuando el riesgo es alto.
+ */
+const debeSonar = (resultado) =>
+  typeof resultado.alerta_sonora === "boolean"
+    ? resultado.alerta_sonora
+    : resultado.nivel_riesgo === "alto";
+
 export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (key) => key }) {
   const cfgMeta = MODE_CONFIG[mode] || MODE_CONFIG.vehicular;
   const cfg = { ...cfgMeta, title: t(cfgMeta.titleKey), desc: t(cfgMeta.descKey) };
@@ -60,14 +70,15 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   const intervaloRef = useRef(null);
   const fileInputRef = useRef(null);
   const audioCtxRef  = useRef(null);
-  const sonandoRef   = useRef(false);
   const sesionIdRef  = useRef(null);
   const sesionFinalizadaRef = useRef(false);
   const creandoSesionRef = useRef(null);   // evita crear dos sesiones con doble clic
   const enVueloRef = useRef(false);        // hay un frame en camino al backend
   const erroresSeguidosRef = useRef(0);
   const analisisActivoRef = useRef(false); // descarta respuestas que llegan tras pausar
-  const alertaIntervaloRef = useRef(null);
+  const alertasRef = useRef(0);            // episodios de riesgo alto de esta sesión
+  const ultimoNivelRef = useRef(null);
+  const wakeLockRef = useRef(null);        // mantiene la pantalla encendida
   const videoUrlRef = useRef(null);
 
   // Grabación local del video (MediaRecorder) — el video nunca sube al
@@ -100,6 +111,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         .then((id) => {
           sesionIdRef.current = id;
           sesionFinalizadaRef.current = false;
+          alertasRef.current = 0;
+          ultimoNivelRef.current = null;
           setSesionId(id);
           return id;
         })
@@ -202,7 +215,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       }
       if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
-      detenerAlerta();
+      liberarPantallaActiva();
       audioCtxRef.current?.close?.();
       audioCtxRef.current = null;
       finalizarSesionActual();
@@ -227,14 +240,12 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     }
   }, []);
 
-  const reproducirAlerta = useCallback(() => {
-    if (sonandoRef.current) return;
-    sonandoRef.current = true;
+  // Un pitido (y una vibración) por cada respuesta con alerta_sonora = true.
+  // Cuántos pitidos suenan y cuándo se callan lo decide el backend.
+  const emitirPitido = useCallback(() => {
     desbloquearAudio();
-
-    const pitar = () => {
-      const ctx = audioCtxRef.current;
-      if (!ctx || ctx.state === "closed") return;
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state !== "closed") {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -245,28 +256,44 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.3);
-      // Vibración (solo Android; iOS no la soporta)
-      navigator.vibrate?.([200, 100, 200]);
-    };
-
-    pitar();
-    alertaIntervaloRef.current = setInterval(pitar, 600);
+    }
+    // Vibración (solo Android; iOS no la soporta)
+    navigator.vibrate?.([200, 100, 200]);
   }, [desbloquearAudio]);
 
-  const detenerAlerta = useCallback(() => {
-    sonandoRef.current = false;
-    clearInterval(alertaIntervaloRef.current);
-    alertaIntervaloRef.current = null;
-    navigator.vibrate?.(0);
+  // ── Pantalla encendida ────────────────────────────────
+  // Si el celular apaga la pantalla en pleno recorrido, la cámara se detiene
+  // y el sistema deja de proteger. Requiere HTTPS (el túnel) o localhost.
+  const pedirPantallaActiva = useCallback(async () => {
+    try {
+      if (!("wakeLock" in navigator) || wakeLockRef.current) return;
+      const lock = await navigator.wakeLock.request("screen");
+      wakeLockRef.current = lock;
+      lock.addEventListener?.("release", () => {
+        if (wakeLockRef.current === lock) wakeLockRef.current = null;
+      });
+    } catch (err) {
+      console.warn("No se pudo mantener la pantalla encendida:", err);
+    }
   }, []);
 
+  const liberarPantallaActiva = useCallback(() => {
+    const lock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    Promise.resolve(lock?.release?.()).catch(() => {});
+  }, []);
+
+  // El navegador suelta el bloqueo al ocultar la pestaña; se pide de nuevo al volver.
   useEffect(() => {
-    if (resultadoActual?.nivel_riesgo === "alto") {
-      reproducirAlerta();
-    } else {
-      detenerAlerta();
-    }
-  }, [resultadoActual?.nivel_riesgo]);
+    const alVolver = () => {
+      if (document.visibilityState === "visible" &&
+          (analisisActivoRef.current || videoRef.current?.srcObject)) {
+        pedirPantallaActiva();
+      }
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, [pedirPantallaActiva]);
 
   useEffect(() => {
     if (!resultadoActual) return;
@@ -274,7 +301,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     onSesionUpdate?.({
       modo: mode,
       objetosDetectados: resultadoActual.total_objetos,
-      alertas: esAlto ? 1 : 0,
+      alertas: alertasRef.current,
       fps: fps,
       estado: analizando ? (esAlto ? "riesgoAlto" : "analizando") : "pausado",
       nivelRiesgo: resultadoActual.nivel_riesgo,
@@ -333,10 +360,9 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     // Solo se pausa un video cargado. La cámara en vivo sigue corriendo:
     // si se pausara, al reanudar se analizaría un frame congelado.
     if (cfg.usaVideo && videoRef.current) videoRef.current.pause();
-    detenerAlerta();
     const canvas = canvasRef.current;
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-  }, [detenerAlerta, cfg.usaVideo]);
+  }, [cfg.usaVideo]);
 
   const iniciarAnalisis = useCallback(async () => {
     if (!backendConectado) return;
@@ -351,6 +377,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     }
 
     setError(null);
+    pedirPantallaActiva();
     if (videoRef.current?.paused) videoRef.current.play().catch(() => {});
 
     clearInterval(intervaloRef.current);
@@ -377,12 +404,32 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         setBackendConectado(true);
         setResultadoActual(resultado);
 
+        // Un episodio de alerta = paso de "no alto" a "alto"
+        if (resultado.nivel_riesgo === "alto" && ultimoNivelRef.current !== "alto") {
+          alertasRef.current += 1;
+        }
+        ultimoNivelRef.current = resultado.nivel_riesgo;
+
+        if (debeSonar(resultado)) emitirPitido();
+
         const ahora = Date.now();
         setFps(Math.round(1000 / (ahora - ultimoTiempo)));
         ultimoTiempo = ahora;
 
         dibujarDetecciones(resultado.objetos_detectados);
       } catch (err) {
+        if (!analisisActivoRef.current) return; // error de un frame que viajaba al pausar o detener
+        if (/finalizada/i.test(err.message)) {
+          // El servidor cerró esta sesión (inactividad o reinicio): se abre
+          // una nueva y el análisis sigue sin que el usuario tenga que hacer nada.
+          sesionFinalizadaRef.current = true;
+          try {
+            await asegurarSesion();
+          } catch (e) {
+            console.error("Error creando sesión nueva:", e);
+          }
+          return;
+        }
         console.error("Error enviando frame:", err);
         erroresSeguidosRef.current += 1;
         // Tras 3 fallos seguidos se avisa que el sistema no está protegiendo
@@ -391,7 +438,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         enVueloRef.current = false;
       }
     }, INTERVALO_MS);
-  }, [backendConectado, dibujarDetecciones, asegurarSesion, desbloquearAudio]);
+  }, [backendConectado, dibujarDetecciones, asegurarSesion, desbloquearAudio, emitirPitido, pedirPantallaActiva]);
 
   // ── Cámara ────────────────────────────────────────────
   const iniciarCamara = async () => {
@@ -406,6 +453,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         setCamaraActiva(true);
+        pedirPantallaActiva();
         try {
           await asegurarSesion(); // para asociar la grabación a su sesión
         } catch (err) {
@@ -428,6 +476,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     setCamaraActiva(false);
     setResultadoActual(null);
     setFps("—");
+    liberarPantallaActiva();
     finalizarSesionActual();
   };
 
@@ -457,6 +506,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     if (videoRef.current) videoRef.current.currentTime = 0;
     setResultadoActual(null);
     setFps("—");
+    liberarPantallaActiva();
     finalizarSesionActual();
   };
 
@@ -493,7 +543,7 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     : <div className="feed-badge" style={{ color: "#ff4d4f" }}>{t("camera.backendUnavailable")}</div>;
 
   // Píldora de riesgo flotante — solo en modos con feed visual completo.
-  // En bicicleta, la alerta sonora es la única señal (ver reproducirAlerta).
+  // En bicicleta, la alerta sonora es la única señal (ver emitirPitido).
   const riesgoFlotante = () => (
     <div className="cv-feed-risk-badge">
       <div className="cv-feed-risk-badge-inner" style={{ color: riesgo.color, background: `${riesgo.color}1a` }}>
