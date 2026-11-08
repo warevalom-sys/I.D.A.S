@@ -1,23 +1,30 @@
-# ─────────────────────────────────────────────────────────────────
+﻿# ---------------------------------------------------------------------------
 # Umbrales de riesgo
-# ─────────────────────────────────────────────────────────────────
-# area_relativa = fracción del frame que ocupa el bounding box (0.0 a 1.0).
-# tasa_expansion = cambio del área relativa por segundo (positivo = acercándose).
+# ---------------------------------------------------------------------------
+# area_relativa = fraccion del frame que ocupa el bounding box (0.0 a 1.0).
+# tasa_expansion = cambio del area relativa por segundo (positivo = acercandose).
 #
-# Los umbrales de TASA son valores iniciales: hay que calibrarlos con los
-# videos de prueba (Sprint 7) y con la velocidad real de la bicicleta.
+# Los umbrales son valores iniciales: hay que validarlos con los videos de
+# ciclovia y con la velocidad real de la bicicleta.
 
 # Zona central horizontal del frame (trayectoria probable del usuario)
 ZONA_CENTRAL_MIN = 0.25
 ZONA_CENTRAL_MAX = 0.75
 
-# Riesgo por tamaño (proximidad en un solo frame)
+# Riesgo por tamano (proximidad en un solo frame)
 AREA_ALTO = 0.15
-AREA_MEDIO = 0.06
+AREA_MEDIO = 0.06          # vehiculos (carro, moto, bus, camion)
 AREA_BAJO = 0.02
 
-# Riesgo por acercamiento rápido: un objeto pequeño pero que crece rápido
-# en la zona central también es peligroso.
+# Usuarios vulnerables (persona, bicicleta): una caja alta y estrecha ocupa
+# poca area aun estando cerca, por eso el umbral de "medio" es menor.
+# Valor ajustado con un solo caso (monopatinista a ~6 m en test2, area ~0.008):
+# provisional hasta validar con videos de ciclovia.
+CLASES_VULNERABLES = ("persona", "bicicleta")
+AREA_MEDIO_VULNERABLE = 0.008
+
+# Riesgo por acercamiento rapido: un objeto pequeno pero que crece rapido
+# en la zona central tambien es peligroso.
 AREA_MIN_ACERCAMIENTO_ALTO = 0.04
 AREA_MIN_ACERCAMIENTO_MEDIO = 0.02
 TASA_ACERCAMIENTO_ALTO = 0.10
@@ -31,6 +38,7 @@ def _riesgo_objeto(obj: dict) -> str:
     pos_x = obj["posicion_relativa"]["x"]
     tasa = obj.get("tasa_expansion", 0.0) or 0.0
 
+    area_medio = AREA_MEDIO_VULNERABLE if obj.get("clase") in CLASES_VULNERABLES else AREA_MEDIO
     en_zona_central = ZONA_CENTRAL_MIN <= pos_x <= ZONA_CENTRAL_MAX
 
     if en_zona_central:
@@ -38,7 +46,7 @@ def _riesgo_objeto(obj: dict) -> str:
             return "alto"
         if area >= AREA_MIN_ACERCAMIENTO_ALTO and tasa >= TASA_ACERCAMIENTO_ALTO:
             return "alto"
-        if area > AREA_MEDIO:
+        if area > area_medio:
             return "medio"
         if area >= AREA_MIN_ACERCAMIENTO_MEDIO and tasa >= TASA_ACERCAMIENTO_MEDIO:
             return "medio"
@@ -52,14 +60,14 @@ def _riesgo_objeto(obj: dict) -> str:
 def calcular_riesgo(objetos: list, ancho_frame: int, alto_frame: int) -> str:
     """
     Analiza las detecciones y determina el nivel de riesgo del frame.
-    No usa IA — es lógica algorítmica pura.
+    No usa IA: es logica algoritmica pura.
 
-    Criterios (se toma el nivel más alto entre todos los objetos):
+    Criterios (se toma el nivel mas alto entre todos los objetos):
     - ALTO:  objeto grande (>15% del frame) y centrado horizontalmente,
-             o objeto mediano en zona central que se acerca rápido.
-    - MEDIO: objeto de tamaño moderado en zona central,
-             o objeto pequeño en zona central que se acerca.
-    - BAJO:  objetos en los bordes o pequeños.
+             o objeto mediano en zona central que se acerca rapido.
+    - MEDIO: objeto de tamano moderado en zona central (umbral menor para
+             personas y bicicletas), o pequeno en zona central que se acerca.
+    - BAJO:  objetos en los bordes o pequenos.
     - NINGUNO: sin detecciones relevantes.
     """
     if not objetos:
