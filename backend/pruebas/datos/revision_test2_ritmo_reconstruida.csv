@@ -1,0 +1,15 @@
+﻿id,inicio,fin,inicio_s,fin_s,grupo,descripcion
+R01,00:37,00:44,37,44,positivo_directo,Peaton cruza por paso cebra delante de la trayectoria
+R02,01:25,01:45,85,105,contextual,Peatones cruzan al extremo opuesto; distancia amplia sin conflicto inminente
+N01,02:01,02:26,121,146,control_negativo,Trafico normal; autobus en sentido contrario y vehiculos a distancia
+R03,02:27,02:41,147,161,positivo_directo,Vehiculo precedente aumenta de tamano y frena; separacion se reduce
+R04,03:13,03:45,193,225,positivo_directo,Vehiculo precedente frena y queda detenido ante semaforo; separacion corta
+R05,05:00,05:19,300,319,positivo_directo,Tras cruzar esquina (303-305 s) monopatinista delante a ~6 m en la misma direccion; se espera medio
+R06,05:51,06:00,351,360,positivo_directo,Peaton junto a esquina y vehiculos cruzando lateralmente; conflicto potencial
+N02,06:33,06:57,393,417,control_negativo,Autobus y micromovilidad fuera de trayectoria inmediata
+N03,07:45,08:09,465,489,control_negativo,Transito estable; peatones en acera sin cruce a la trayectoria
+R07,08:29,08:38,509,518,positivo_directo,Seguimiento cercano de automovil que reduce velocidad
+R08,09:12,09:33,552,573,positivo_directo,Automovil precedente proximo frena y acorta la distancia
+R09,10:21,10:54,621,654,positivo_directo,Interseccion con peatones y vehiculo precedente que frena; semaforo
+R10,11:19,11:27,679,687,contextual,Obras estrechan el corredor; riesgo fuera de clases YOLO
+R11,12:00,12:12,720,732,contextual,Peaton cruza y tranvia pasa perpendicular; vehiculo de camara detenido

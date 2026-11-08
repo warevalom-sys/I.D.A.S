@@ -35,3 +35,5 @@ episodios_*.csv
 .DS_Store
 Thumbs.db
 '@ | Set-Content -Path .gitignore -Encoding utf8
+backend/pruebas/resultados/
+backend/pruebas/capturas/

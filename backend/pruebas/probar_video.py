@@ -17,6 +17,10 @@ Uso basico:
 Con etiquetas manuales (para medir la precision del nivel de riesgo):
     python pruebas/probar_video.py videos/ciclovia_dia.mp4 --etiquetas videos/ciclovia_dia.csv
 
+Detalle por objeto de un tramo (R01 = 37 a 44 s), con 10 s de margen previo:
+    python pruebas/probar_video.py test2.mp4 --desde 37 --hasta 44 ^
+        --salida pruebas/r01.csv --objetos-jsonl pruebas/r01_objetos.jsonl
+
 Formato del CSV de etiquetas (el nivel aplica desde ese segundo hasta la
 siguiente fila):
     segundo,riesgo_esperado
@@ -29,13 +33,18 @@ Notas:
   - La URL por defecto usa 127.0.0.1 y no "localhost": en Windows, "localhost"
     se resuelve primero a IPv6 (::1) y, si el servidor solo escucha en IPv4,
     cada peticion pierde ~2 s esperando el reintento.
-  - Los primeros frames (--descartar-primeros, 1 por defecto) incluyen el
-    arranque del modelo YOLO; se guardan en el CSV (columna "calentamiento")
-    pero no cuentan en las estadisticas de latencia.
+  - Los primeros frames enviados (--descartar-primeros, 1 por defecto) incluyen
+    el arranque del modelo YOLO; se marcan en la columna "calentamiento" y no
+    cuentan en las estadisticas de latencia.
   - "alerta_sonora" vale 1 si el backend indico que el frontend debe pitar
     con ese frame, 0 si no, y queda vacia si el backend no envia el campo.
   - "ms_desde_anterior" es el tiempo real entre este envio y el anterior;
     con ritmo real debe rondar --intervalo-ms.
+  - Con --desde/--hasta los frames del margen se envian (para que el tracker
+    y la tasa tengan historial) pero no se guardan en el CSV ni en el JSONL.
+    Los IDs del tracker pueden diferir de los de la corrida completa.
+  - El nivel por objeto del JSONL se calcula con services.riesgo._riesgo_objeto
+    (mismas reglas del backend). El nivel del frame es el maximo de esos.
 
 Solo usa la libreria estandar y OpenCV (ya instalado para el backend).
 El servidor debe estar corriendo:  uvicorn app:app --port 8000
@@ -43,6 +52,7 @@ El servidor debe estar corriendo:  uvicorn app:app --port 8000
 import argparse
 import csv
 import json
+import math
 import statistics
 import sys
 import time
@@ -52,6 +62,17 @@ from collections import Counter
 from pathlib import Path
 
 import cv2
+
+# Para reutilizar las reglas de riesgo del backend (nivel por objeto).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+try:
+    from services.riesgo import _riesgo_objeto, ZONA_CENTRAL_MIN, ZONA_CENTRAL_MAX
+except Exception as _e:  # el script sigue funcionando sin el nivel por objeto
+    _riesgo_objeto = None
+    ZONA_CENTRAL_MIN, ZONA_CENTRAL_MAX = 0.25, 0.75
+    _ERROR_IMPORT_RIESGO = str(_e)
+else:
+    _ERROR_IMPORT_RIESGO = ""
 
 NIVELES = ["ninguno", "bajo", "medio", "alto"]
 ALERTA = {"medio", "alto"}
@@ -144,6 +165,29 @@ def _linea_latencia(nombre, valores):
             f"p95={_percentil(valores, 0.95):.0f}  max={max(valores):.0f}")
 
 
+# ----------------------------- Detalle por objeto -----------------------------
+def _objeto_detalle(o):
+    x = (o.get("posicion_relativa") or {}).get("x")
+    y = (o.get("posicion_relativa") or {}).get("y")
+    nivel = ""
+    if _riesgo_objeto is not None:
+        try:
+            nivel = _riesgo_objeto(o)
+        except Exception:
+            nivel = ""
+    return {
+        "clase": o.get("clase"),
+        "confianza": o.get("confianza"),
+        "track_id": o.get("track_id"),
+        "area": o.get("area_relativa"),
+        "x": x,
+        "y": y,
+        "en_zona_central": (ZONA_CENTRAL_MIN <= x <= ZONA_CENTRAL_MAX) if x is not None else None,
+        "tasa": o.get("tasa_expansion"),
+        "nivel_objeto": nivel,
+    }
+
+
 # ------------------------------- Principal -------------------------------
 def main():
     ap = argparse.ArgumentParser(description="Prueba el backend IDSS con un video.")
@@ -155,10 +199,21 @@ def main():
                     help="Enviar sin pausas (solo para latencia maxima; distorsiona la tasa)")
     ap.add_argument("--etiquetas", help="CSV con riesgo esperado por segundo")
     ap.add_argument("--salida", help="CSV de resultados (por defecto <video>_resultados.csv)")
-    ap.add_argument("--max-frames", type=int, default=0, help="Limitar frames (0 = todo el video)")
+    ap.add_argument("--max-frames", type=int, default=0, help="Limitar frames guardados (0 = todo)")
     ap.add_argument("--descartar-primeros", type=int, default=1,
                     help="Frames de calentamiento que no cuentan en la latencia (por defecto 1)")
+    ap.add_argument("--objetos-jsonl", help="Guardar el detalle por objeto de cada frame (JSONL)")
+    ap.add_argument("--desde", type=float, default=0.0, help="Segundo de video donde empieza lo que se guarda")
+    ap.add_argument("--hasta", type=float, default=0.0, help="Segundo de video donde termina (0 = hasta el final)")
+    ap.add_argument("--margen", type=float, default=10.0,
+                    help="Segundos enviados antes de --desde para calentar tracker y tasa (no se guardan)")
     args = ap.parse_args()
+
+    if args.desde > 0 and not args.salida:
+        sys.exit("Con --desde debes indicar --salida para no pisar el CSV de la corrida completa.")
+    if args.objetos_jsonl and _riesgo_objeto is None:
+        print(f"AVISO: no se pudo importar services.riesgo ({_ERROR_IMPORT_RIESGO}); "
+              "el JSONL saldra sin 'nivel_objeto'.\n")
 
     if "localhost" in args.url:
         print("AVISO: 'localhost' puede anadir ~2 s por peticion en Windows (IPv6). "
@@ -180,18 +235,31 @@ def main():
     except Exception as e:
         sys.exit(f"No se pudo conectar al backend en {args.url}: {e}")
 
+    paso_s = args.intervalo_ms / 1000
+
+    # Inicio alineado a la cuadricula de paso_s para coincidir con la corrida completa.
+    t = 0.0
+    if args.desde > 0:
+        t = max(0.0, math.floor((args.desde - args.margen) / paso_s) * paso_s)
+
     print(f"Video: {args.video}  ({duracion:.1f} s, {fps:.1f} fps)")
+    if args.desde > 0 or args.hasta > 0:
+        fin_txt = f"{args.hasta:.1f}" if args.hasta > 0 else "fin"
+        print(f"Tramo guardado: {args.desde:.1f} a {fin_txt} s | envio desde t={t:.2f} s (margen)")
     _json(f"{args.url}/api/metricas/reiniciar", "POST")
     sesion_id = _json(f"{args.url}/api/sesiones", "POST", {})["sesion_id"]
     modo = "sin pausas" if args.sin_ritmo else "a cadencia real"
     print(f"Sesion {sesion_id} creada. Analizando un frame cada {args.intervalo_ms} ms ({modo})...\n")
 
-    filas, errores, t = [], 0, 0.0
-    paso_s = args.intervalo_ms / 1000
+    jsonl = open(args.objetos_jsonl, "w", encoding="utf-8") if args.objetos_jsonl else None
+
+    filas, errores = [], 0
     inicio_ritmo = time.perf_counter()
     n_envio = 0
     ultimo_envio = None
     while True:
+        if args.hasta > 0 and t > args.hasta + 1e-6:
+            break
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
         ok, frame = cap.read()
         if not ok:
@@ -222,6 +290,13 @@ def main():
         else:
             alerta_sonora = ""
 
+        # Los frames anteriores a --desde solo sirven para calentar tracker y tasa.
+        en_margen = args.desde > 0 and t < args.desde - 1e-6
+        if en_margen:
+            print(f"  t={t:6.2f}s  riesgo={r['nivel_riesgo']:<8} (margen, no se guarda)")
+            t += paso_s
+            continue
+
         fila = {
             "segundo": round(t, 2),
             "nivel_riesgo": r["nivel_riesgo"],
@@ -231,13 +306,22 @@ def main():
             ),
             "ms_servidor": r.get("tiempo_procesamiento_ms", ""),
             "ms_ida_y_vuelta": round(ida_vuelta_ms, 1),
-            "calentamiento": 1 if len(filas) < args.descartar_primeros else 0,
+            "calentamiento": 1 if (n_envio - 1) < args.descartar_primeros else 0,
         }
         if etiquetas:
             fila["riesgo_esperado"] = nivel_esperado(etiquetas, t)
         fila["alerta_sonora"] = alerta_sonora
         fila["ms_desde_anterior"] = desde_anterior
         filas.append(fila)
+
+        if jsonl:
+            jsonl.write(json.dumps({
+                "segundo": fila["segundo"],
+                "nivel_riesgo": r["nivel_riesgo"],
+                "alerta_sonora": alerta_sonora,
+                "objetos": [_objeto_detalle(o) for o in r["objetos_detectados"]],
+            }, ensure_ascii=False) + "\n")
+
         marca = "  (calentamiento)" if fila["calentamiento"] else ""
         pita = "  PITIDO" if alerta_sonora == 1 else ""
         print(f"  t={t:6.2f}s  riesgo={r['nivel_riesgo']:<8} objetos={r['total_objetos']:<2} "
@@ -249,10 +333,12 @@ def main():
             break
 
     cap.release()
+    if jsonl:
+        jsonl.close()
     _json(f"{args.url}/api/sesiones/{sesion_id}/finalizar", "PATCH")
 
     if not filas:
-        sys.exit("No se analizo ningun frame.")
+        sys.exit("No se guardo ningun frame.")
 
     salida = args.salida or str(Path(args.video).with_suffix("")) + "_resultados.csv"
     with open(salida, "w", newline="", encoding="utf-8") as f:
@@ -269,7 +355,7 @@ def main():
     servidor = [f["ms_servidor"] for f in validas if isinstance(f["ms_servidor"], (int, float))]
 
     print("\n" + "=" * 60)
-    print(f"Frames analizados: {len(filas)}   Errores: {errores}   "
+    print(f"Frames guardados: {len(filas)}   Errores: {errores}   "
           f"Frames en estadisticas: {len(validas)} (sin {len(filas) - len(validas)} de calentamiento)")
     primeros = [f for f in filas if f["calentamiento"]]
     if primeros:
@@ -288,8 +374,7 @@ def main():
     if con_campo:
         pitidos = sum(f["alerta_sonora"] for f in con_campo)
         altos = sum(1 for f in con_campo if f["nivel_riesgo"] == "alto")
-        print(f"Alerta sonora: {pitidos} pitidos en {altos} frames alto "
-              f"(sin politica, cada frame alto habria pitado)")
+        print(f"Alerta sonora: {pitidos} pitidos en {altos} frames alto")
     else:
         print("Alerta sonora: el backend no envio el campo alerta_sonora")
 
@@ -298,6 +383,8 @@ def main():
     if etiquetas:
         resumen_precision(filas)
     print(f"\nResultados guardados en: {salida}")
+    if args.objetos_jsonl:
+        print(f"Detalle por objeto en:  {args.objetos_jsonl}")
 
 
 if __name__ == "__main__":
