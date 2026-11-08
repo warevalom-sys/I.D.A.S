@@ -11,6 +11,7 @@ import {
 import { guardarVideoLocal } from "../services/videoStorage";
 import VehicleIcon from "../components/VehicleIcon";
 import { tr } from "../config/perfiles";
+import { leerAjustes, restriccionesDeCamara, tono } from "../config/ajustes";
 import "../styles/camera.css";
 
 const INTERVALO_MS = 750;
@@ -241,24 +242,18 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
   }, []);
 
   // Un pitido (y una vibración) por cada respuesta con alerta_sonora = true.
-  // Cuántos pitidos suenan y cuándo se callan lo decide el backend.
+  // Cuántos pitidos suenan y cuándo se callan lo decide el backend; si suena,
+  // cuánto y si vibra lo deciden los ajustes (se leen en cada alerta, así los
+  // cambios de Settings se aplican al instante).
   const emitirPitido = useCallback(() => {
-    desbloquearAudio();
-    const ctx = audioCtxRef.current;
-    if (ctx && ctx.state !== "closed") {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = "square";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
+    const ajustes = leerAjustes();
+    if (ajustes.sonido && ajustes.volumen > 0) {
+      desbloquearAudio();
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") tono(ctx, ajustes.volumen);
     }
     // Vibración (solo Android; iOS no la soporta)
-    navigator.vibrate?.([200, 100, 200]);
+    if (ajustes.vibracion) navigator.vibrate?.([200, 100, 200]);
   }, [desbloquearAudio]);
 
   // ── Pantalla encendida ────────────────────────────────
@@ -445,10 +440,8 @@ export default function CameraView({ mode, navigate, onSesionUpdate, user, t = (
     desbloquearAudio(); // dentro del toque del usuario
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: 640, height: 480 },
-        audio: false,
-      });
+      // Cámara trasera/frontal y resolución según los ajustes guardados
+      const stream = await navigator.mediaDevices.getUserMedia(restriccionesDeCamara(leerAjustes()));
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();

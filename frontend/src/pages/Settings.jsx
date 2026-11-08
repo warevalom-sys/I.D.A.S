@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ROUTES } from "../Routes";
 import { perfilDe, tr } from "../config/perfiles";
 import VehicleIcon from "../components/VehicleIcon";
+import { leerAjustes, guardarAjustes, probarAlerta } from "../config/ajustes";
 import "../styles/settings.css";
 
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
@@ -61,14 +62,6 @@ function Section({ title, subtitle, action, children }) {
   );
 }
 
-// ─── Datos de configuración de visualización (claves de traducción, no texto) ─
-const VISUAL_SETTINGS = [
-  { key: "cajas", labelKey: "settings.visual.cajas.label", descKey: "settings.visual.cajas.desc" },
-  { key: "distancia", labelKey: "settings.visual.distancia.label", descKey: "settings.visual.distancia.desc" },
-  { key: "velocidad", labelKey: "settings.visual.velocidad.label", descKey: "settings.visual.velocidad.desc" },
-  { key: "nocturno", labelKey: "settings.visual.nocturno.label", descKey: "settings.visual.nocturno.desc" },
-];
-
 const VEHICLE_FIELDS = [
   { labelKey: "settings.vehicle.marca", key: "marca" },
   { labelKey: "settings.vehicle.modelo", key: "modelo" },
@@ -78,25 +71,25 @@ const VEHICLE_FIELDS = [
   { labelKey: "settings.vehicle.kilometraje", key: "kilometraje" },
 ];
 
-// Valores internos sin traducir (compatibilidad con lo que espere el backend);
-// la traducción solo afecta lo que se muestra.
-const SENSIBILIDAD_OPCIONES = ["Baja", "Media", "Alta"];
-const SENSIBILIDAD_KEYS = {
-  Baja: "settings.sensitivity.baja",
-  Media: "settings.sensitivity.media",
-  Alta: "settings.sensitivity.alta",
-};
+// El perfil del vehículo se guarda en este dispositivo, por usuario (el backend
+// todavía no tiene un endpoint para editarlo).
+const VEHICULO_VACIO = { marca: "", modelo: "", anio: "", placa: "", color: "", kilometraje: "" };
+const claveVehiculo = (usuarioId) => `idas_vehiculo_${usuarioId ?? "local"}`;
 
-// Único apartado funcional por ahora además de tema/idioma: la resolución.
-// Cámara/Vehículo/Notificaciones quedan en estado local sin persistir hasta backend.
-const GENERAL_STORAGE_KEY = "idas_settings_general";
-
-function loadGeneralSettings() {
+function cargarVehiculo(usuarioId) {
   try {
-    const raw = localStorage.getItem(GENERAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const raw = localStorage.getItem(claveVehiculo(usuarioId));
+    return { ...VEHICULO_VACIO, ...(raw ? JSON.parse(raw) : {}) };
   } catch {
-    return null;
+    return { ...VEHICULO_VACIO };
+  }
+}
+
+function guardarVehiculo(usuarioId, datos) {
+  try {
+    localStorage.setItem(claveVehiculo(usuarioId), JSON.stringify(datos));
+  } catch {
+    /* sin almacenamiento disponible: se conserva solo mientras la pantalla esté abierta */
   }
 }
 
@@ -112,24 +105,22 @@ export default function Settings({
   idioma = "es",
   onIdiomaChange = () => {},
 }) {
-  const { name = "Usuario", initials = "US", tieneAuto = false } = user;
+  const { name = "Usuario", initials = "US", tieneAuto = false, usuarioId } = user;
 
   // El tipo de usuario decide qué secciones se ven y en qué orden.
   const perfil = perfilDe(user);
   const esBici = perfil.id === "bicicleta";
   const mostrarVehiculo = tieneAuto && !esBici;
-  const mostrarVisual = !esBici; // en bicicleta no se dibuja nada sobre el video
 
-  // — Perfil del vehículo (solo carro / moto) — estado local, no persiste todavía.
+  // — Perfil del vehículo (solo carro / moto) — se guarda en este dispositivo.
   const [editingVehicle, setEditingVehicle] = useState(false);
-  const [vehicle, setVehicle] = useState({
-    marca: "", modelo: "", anio: "", placa: "", color: "", kilometraje: "",
-  });
-  const [vehicleTemp, setVehicleTemp] = useState({ ...vehicle });
+  const [vehicle, setVehicle] = useState(() => cargarVehiculo(usuarioId));
+  const [vehicleTemp, setVehicleTemp] = useState(() => cargarVehiculo(usuarioId));
 
   const handleVehicleEdit = () => {
     if (editingVehicle) {
       setVehicle({ ...vehicleTemp });
+      guardarVehiculo(usuarioId, vehicleTemp);
     } else {
       setVehicleTemp({ ...vehicle });
     }
@@ -138,41 +129,40 @@ export default function Settings({
 
   // — Ajustes generales — idioma vive en App.jsx; aquí solo se propone en
   // "general.idioma" y se confirma hacia arriba al guardar.
-  const [general, setGeneral] = useState(() => {
-    const saved = loadGeneralSettings();
-    return {
-      idioma,
-      resolucion: saved?.resolucion ?? "1280 × 720",
-    };
-  });
+  const [general, setGeneral] = useState(() => ({
+    idioma,
+    resolucion: leerAjustes().resolucion,
+  }));
   const setGeneralField = (key, val) => setGeneral((prev) => ({ ...prev, [key]: val }));
 
-  // — Ajustes de cámara / notificaciones — solo estado local,
-  // esperando a que se estructure el backend correspondiente.
-  const [settings, setSettings] = useState({
-    // Cámara
-    camaraTrasera: true,
-    sensibilidad:  "Media",
-    cajas:      true,
-    distancia:  true,
-    velocidad:  true,
-    nocturno:   false,
-    // Notificaciones (en bicicleta las alertas son sonoras: sonido activo por defecto)
-    vibracion:  true,
-    sonido:     esBici,
-    volumen:    75,
+  // — Ajustes de cámara y de alertas — se guardan en este dispositivo y los
+  // lee CameraView en cada uso (ver config/ajustes.js).
+  const [settings, setSettings] = useState(() => {
+    const guardados = leerAjustes();
+    return {
+      camaraTrasera: guardados.camaraTrasera,
+      vibracion: guardados.vibracion,
+      sonido: guardados.sonido,
+      volumen: guardados.volumen,
+    };
   });
 
   const toggle = (key) => setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
   const set    = (key, val) => setSettings((prev) => ({ ...prev, [key]: val }));
 
-  // — Guardar configuración — persiste resolución localmente y confirma el
-  // idioma propuesto hacia App.jsx. El tema se aplica de inmediato.
+  // — Guardar configuración — persiste los ajustes en este dispositivo y
+  // confirma el idioma propuesto hacia App.jsx. El tema se aplica de inmediato.
   const [saveState, setSaveState] = useState("idle"); // "idle" | "saved"
 
   const handleSave = () => {
     try {
-      localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify({ resolucion: general.resolucion }));
+      guardarAjustes({
+        resolucion: general.resolucion,
+        camaraTrasera: settings.camaraTrasera,
+        sonido: settings.sonido,
+        volumen: settings.volumen,
+        vibracion: settings.vibracion,
+      });
       if (general.idioma !== idioma) {
         onIdiomaChange(general.idioma);
       }
@@ -246,6 +236,21 @@ export default function Settings({
       <Row label={t("settings.notifications.vibration")}>
         <Toggle checked={settings.vibracion} onChange={() => toggle("vibracion")} label={t("settings.notifications.vibration")} />
       </Row>
+      {(settings.sonido || settings.vibracion) && (
+        <Row
+          label={tr(t, "settings.notifications.test", "Probar alerta")}
+          desc={tr(t, "settings.notifications.testDesc", "Suena y vibra como lo haría una alerta real.")}
+        >
+          <button type="button" className="st-pill-btn" onClick={() => probarAlerta(settings)}>
+            {tr(t, "settings.notifications.testBtn", "Probar")}
+          </button>
+        </Row>
+      )}
+      {esBici && !settings.sonido && !settings.vibracion && (
+        <p className="st-section-sub" role="alert">
+          {tr(t, "settings.notifications.warnOff", "Sin sonido ni vibración no recibirás ningún aviso mientras pedaleas.")}
+        </p>
+      )}
     </Section>
   );
 
@@ -254,20 +259,6 @@ export default function Settings({
       <Row label={t("settings.camera.rearDefault")}>
         <Toggle checked={settings.camaraTrasera} onChange={() => toggle("camaraTrasera")} label={t("settings.camera.rearDefault")} />
       </Row>
-      <Row label={t("settings.camera.sensitivity")}>
-        <Segmented
-          ariaLabel={t("settings.camera.sensitivity")}
-          value={settings.sensibilidad}
-          onChange={(v) => set("sensibilidad", v)}
-          options={SENSIBILIDAD_OPCIONES.map((v) => ({ value: v, label: t(SENSIBILIDAD_KEYS[v]) }))}
-        />
-      </Row>
-      {mostrarVisual &&
-        VISUAL_SETTINGS.map(({ key, labelKey, descKey }) => (
-          <Row key={key} label={t(labelKey)} desc={t(descKey)}>
-            <Toggle checked={settings[key]} onChange={() => toggle(key)} label={t(labelKey)} />
-          </Row>
-        ))}
     </Section>
   );
 
@@ -295,7 +286,10 @@ export default function Settings({
           ]}
         />
       </Row>
-      <Row label={t("settings.general.resolution")}>
+      <Row
+        label={t("settings.general.resolution")}
+        desc={tr(t, "settings.general.resolutionDesc", "Menos resolución responde más rápido. Recomendado: 640 × 480.")}
+      >
         <select
           className="st-select"
           value={general.resolucion}
